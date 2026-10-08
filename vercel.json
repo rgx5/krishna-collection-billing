@@ -8,7 +8,7 @@
     },
     "backend": {
       "root": "backend",
-      "framework": "nestjs"
+      "entrypoint": "Dockerfile.vercel"
     }
   },
   "rewrites": [
