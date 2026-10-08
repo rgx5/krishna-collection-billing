@@ -189,7 +189,7 @@ export async function backupToCloud(opts: { manual?: boolean } = {}): Promise<{ 
       return { ok: false, message }
     }
     if (res.status === 413) {
-      const message = 'The backup is too large for the cloud (40 MB limit) — contact support'
+      const message = 'The backup is too large for the cloud to accept — contact support (the hosting plan\'s upload limit has been reached)'
       setState({ cloud: { error: message } })
       return { ok: false, message }
     }

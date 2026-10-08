@@ -55,7 +55,8 @@ cd backend
 npm run migrate:prod        # applies migrations/002_backups.sql (creates the `backups` table)
 ```
 * `CORS_ORIGINS` must include the hosted web app origin, as before. The desktop app is always allowed.
-* Backups are sent as raw gzip (limit 45 MB request / 40 MB stored). A year of busy shop data is a few MB compressed.
+* Backups are sent as raw gzip (limit 45 MB request / 40 MB stored). **On Vercel the platform caps request/response bodies
+  at 4.5 MB**, which is lower — see [DEPLOY.md](DEPLOY.md). A year of busy shop data is a few MB compressed.
 * Neon storage use is bounded by the retention rules above (≈ 12 + 30 + 10 versions at most).
 * `POST /auth/refresh` is new: counters left open all day renew their cloud token instead of silently stopping after 12 h.
 
