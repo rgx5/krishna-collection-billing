@@ -3,8 +3,8 @@ name: Desktop release
 # Tauri installers are platform-specific — a Windows .msi has to be built on
 # a Windows runner, a macOS .dmg on a macOS runner — so unlike the rest of
 # this repo, this genuinely needs CI rather than a single build step. Pushing
-# a tag like `app-v0.1.0` builds all three and attaches them to a GitHub
-# Release; `workflow_dispatch` lets you trigger the same thing by hand
+# a tag like `app-v0.1.0` builds the Windows installers and attaches them to a
+# draft GitHub Release; `workflow_dispatch` lets you trigger the same thing by hand
 # without cutting a tag, e.g. to sanity-check a change before releasing it.
 on:
   push:
@@ -24,18 +24,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The shop runs Windows (drive letters, Documents folder). Add macos-latest / ubuntu-22.04 back here if ever needed.
           - platform: windows-latest
-          - platform: macos-latest
-          - platform: ubuntu-22.04
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
 
       - uses: actions/setup-node@v4
         with:

@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'reac
 import { useApp, type Permission } from './state'
 import { exportBackup } from './db'
 import { downloadFile } from './lib/csv'
-import { isDesktop, onBackupRequest, onNavigate, saveBackup, showWindow } from './lib/tauri'
+import { isDesktop, onBackupRequest, onNavigate, saveBackup, showWindow, toggleFullscreen } from './lib/tauri'
 import { initialsOf } from './components/ui'
 import { SyncBadge } from './components/SyncBadge'
 import { SafetyBanner } from './components/SafetyBanner'
@@ -263,6 +263,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'F1') { e.preventDefault(); navigate('/pos') }
       if (e.key === 'F9') { e.preventDefault(); navigate('/') }
+      if (e.key === 'F11' && isDesktop()) { e.preventDefault(); void toggleFullscreen() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

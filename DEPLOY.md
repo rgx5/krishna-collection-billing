@@ -5,7 +5,7 @@ One Vercel project, two services, one domain (see `vercel.json`):
 | Service | Folder | Public path | Notes |
 |---|---|---|---|
 | `app` | `.` (Vite web app) | everything except `/api/*` | built with `VITE_API_URL=/api`, so the site talks to the API on its own domain |
-| `backend` | `backend/` (NestJS) | `/api/*` | the service receives the full `/api/...` path, which matches the app's `api` global prefix |
+| `backend` | `backend/` (NestJS) | `/api/*` | runs from `backend/Dockerfile.vercel` (Vercel Container Images, beta) — Vercel's own NestJS bundler left `node_modules` out of the function ("Cannot find module 'reflect-metadata'"). The service receives the full `/api/...` path, which matches the app's `api` global prefix. Listens on port 80 (`ENV PORT=80`). Migrations are **not** run on start — apply them by hand (step 2). |
 
 `src-tauri/` is the Windows desktop shell. It is **not** deployed to Vercel; installers come from the
 `Desktop release` GitHub workflow.
@@ -36,10 +36,19 @@ DATABASE_URL="<neon pooled url>" npm run provision:prod -- --store "Krishna Coll
 Re-run `migrate:prod` after any release that adds a file to `backend/migrations/` (the backups feature needs `002_backups.sql`).
 Do **not** run `seed-demo.ts` against this database.
 
-## 3. Desktop installer
+## 3. Windows desktop installer (built online by GitHub Actions — nothing to install locally)
 
-Set the GitHub repo variable `VITE_API_URL` to `https://<your-domain>/api` (it must be absolute for the desktop app),
-then run the **Desktop release** workflow.
+1. GitHub repo → Settings → Secrets and variables → Actions → **Variables** → New repository variable:
+   `VITE_API_URL` = `https://<your-domain>/api` (absolute — the desktop app is not on your domain).
+2. Settings → Actions → General → Workflow permissions → **Read and write permissions** (so it can attach the installer).
+3. Push a version tag (or Actions → *Desktop release* → Run workflow):
+   `git tag app-v0.1.0 && git push origin app-v0.1.0`
+4. Wait ~10–15 min (first run is slowest — it compiles the Rust shell). Repo → **Releases** → open the *draft* release →
+   download `Krishna Collection_0.1.0_x64-setup.exe` (or the `.msi`) → publish the draft if you want to share the link.
+5. Install on the counter PC. The app opens **full screen**; **F11** toggles it. First launch: "Sign in with email".
+
+For each new version, bump `version` in `src-tauri/tauri.conf.json` (and `src-tauri/Cargo.toml`) and push a new `app-v…` tag.
+Windows may show a SmartScreen warning because the installer is not code-signed — "More info → Run anyway".
 
 ## Limits to know about
 

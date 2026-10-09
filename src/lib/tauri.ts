@@ -37,6 +37,13 @@ export function showWindow() {
   void win.setFocus()
 }
 
+/** F11 in the desktop app: the counter runs full screen; this gets the taskbar and menu back (and back again). */
+export async function toggleFullscreen() {
+  if (!isDesktop()) return
+  const win = getCurrentWindow()
+  await win.setFullscreen(!(await win.isFullscreen()))
+}
+
 export interface SerialPortInfo { path: string; label: string }
 
 export async function listSerialPorts(): Promise<SerialPortInfo[]> {
