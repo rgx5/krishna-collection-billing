@@ -98,3 +98,31 @@ next CI build (`desktop-release` workflow), on a Windows machine:
 * Second-copy drives are limited to letters `D:`–`Z:`, in a folder named `Krishna Collection Backups` at the top of the drive.
 * **The desktop-only parts have not been run inside Tauri** (see the checklist above): file writes, drive scope, the
   close hook and Quit. They type-check against the real plugin APIs.
+
+## How we (the developers) see failed syncs and backups
+
+We cannot reach the shop's PC, so problems are found two ways — one that needs nothing from the device, one that
+explains why:
+
+1. **Server-side, no cooperation needed.** The cloud knows when each store last uploaded a backup and last synced a
+   bill. A store with sales but no backup, or sales newer than a backup more than a day old, is flagged — even if the
+   app is uninstalled or the PC is off. (`GET /api/admin/overview`.)
+2. **Device reports.** Every 10 minutes (and within 30 s of a problem starting or clearing) each device sends counters
+   and reasons: changes waiting, changes refused and why, cloud/PC backup errors, app version. Never bill contents.
+   (`POST /api/device-health`, stored in `device_health`.)
+
+Both are shown on **Settings → Diagnostics**, which exists only for a **super admin**: a user with
+`users.is_super_admin = true`. That flag is set only from the command line — there is no screen or API that grants it:
+
+```bash
+cd backend
+DATABASE_URL="<neon url>" npm run super-admin -- --email you@example.com        # grant
+DATABASE_URL="<neon url>" npm run super-admin -- --email you@example.com --off  # revoke
+```
+
+Shop owners and staff never see Diagnostics or the "changes were refused by the cloud" banner — they cannot act on it and
+it never affects billing. They still see the actionable warnings (not connected, signed out, backup failing).
+
+Limits: this is a dashboard, not an alarm — nothing emails or messages anyone yet; someone has to open Diagnostics. A
+device on an old app version, or one that has never been able to reach the server, reports nothing, which is why the
+server-side check (1) exists.

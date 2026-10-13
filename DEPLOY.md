@@ -59,3 +59,13 @@ Windows may show a SmartScreen warning because the installer is not code-signed 
   needs a new `VITE_API_URL`.
 * **The Hobby plan is for personal, non-commercial use.** A shop's billing system is commercial use, so use a paid plan.
 * Functions run in one region by default (`iad1`); pick the region closest to the Neon database and the shop.
+
+## 4. Making yourself a super admin (to see Settings → Diagnostics)
+
+After `npm run migrate` has applied `004_super_admin_and_device_health.sql`:
+
+```bash
+cd backend && DATABASE_URL="<neon url>" npm run super-admin -- --email <your account email>
+```
+
+Sign out and in again (or wait for the next token refresh). See DATA-SAFETY.md → "How we see failed syncs and backups".
