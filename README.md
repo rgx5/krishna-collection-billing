@@ -15,7 +15,6 @@ so billing keeps working when the shop's internet doesn't.
 npm install
 npm run dev      # http://localhost:5173
 ```
-
 ```bash
 npm run build && npm run preview   # production build
 ```
