@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Krishna Collection",
   "version": "0.1.0",
-  "identifier": "in.rrclothing.billing",
+  "identifier": "in.krishnacollection.billing",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
