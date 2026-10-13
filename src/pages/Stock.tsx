@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -64,7 +65,7 @@ export default function Stock() {
   async function quick(v: VariantView, delta: number) {
     if (v.stock + delta < 0) return
     await moveStock(v.id, delta, 'adjust', 'MANUAL', `Quick adjust (${delta > 0 ? '+' : ''}${delta})`, user?.id ?? '')
-    toast(`${v.productName} ${v.size}/${v.color}: ${v.stock} → ${v.stock + delta}`, 'info', {
+    toast(`${v.productName} ${variantLabel(v.size, v.color)}: ${v.stock} → ${v.stock + delta}`, 'info', {
       label: 'Undo', run: () => void moveStock(v.id, -delta, 'adjust', 'MANUAL', 'Undo quick adjust', user?.id ?? ''),
     })
   }
@@ -130,7 +131,7 @@ export default function Stock() {
                         {rows.slice(0, limit).map((v) => (
                           <tr key={v.id}>
                             <td><div className="bold">{v.productName}</div><div className="small muted mono">{v.sku}</div></td>
-                            <td>{v.size} / {v.color}</td>
+                            <td>{variantLabel(v.size, v.color)}</td>
                             <td className="mono small">{v.barcode}</td>
                             <td className="num">
                               <span className="qty-quick">
@@ -205,7 +206,7 @@ function AdjustModal({ variant, userId, onClose, onDone }: {
     }>
       <div className="card" style={{ padding: 14, marginBottom: 14 }}>
         <div className="bold">{variant.productName}</div>
-        <div className="small muted">{variant.size} / {variant.color} · <span className="mono">{variant.sku}</span> · <span className="mono">{variant.barcode}</span></div>
+        <div className="small muted">{variantLabel(variant.size, variant.color)} · <span className="mono">{variant.sku}</span> · <span className="mono">{variant.barcode}</span></div>
         <div className="row between" style={{ marginTop: 8 }}>
           <span className="small muted">Currently on hand</span>
           <span className="num bold" style={{ fontSize: 20 }}>{variant.stock}</span>
@@ -262,7 +263,7 @@ function RestockList({ items, onClose }: { items: VariantView[]; onClose: () => 
       <>
         <button className="btn" onClick={onClose}>Close</button>
         <button className="btn" onClick={() => {
-          const text = lines().map((v) => `${v.productName} · ${v.size}/${v.color} · ${qty[v.id]} pcs`).join('\n')
+          const text = lines().map((v) => `${v.productName} · ${variantLabel(v.size, v.color)} · ${qty[v.id]} pcs`).join('\n')
           void navigator.clipboard?.writeText(text).then(() => toast('List copied', 'ok'), () => toast('Could not copy', 'err'))
         }}>Copy list</button>
         <button className="btn btn-primary" onClick={() => {
@@ -285,7 +286,7 @@ function RestockList({ items, onClose }: { items: VariantView[]; onClose: () => 
               {sorted.map((v) => (
                 <tr key={v.id}>
                   <td><div className="bold">{v.productName}</div><div className="small muted mono">{v.sku}</div></td>
-                  <td>{v.size} / {v.color}</td>
+                  <td>{variantLabel(v.size, v.color)}</td>
                   <td className="num"><StockBadge stock={v.stock} reorder={v.reorderLevel} /></td>
                   <td className="num">{v.reorderLevel}</td>
                   <td className="num">
@@ -352,7 +353,7 @@ function AuditSheet({ variants, userId }: { variants: VariantView[]; userId: str
     setScan('')
     if (!v) { setLast({ ok: false, text: `Unknown barcode ${code} — not in your catalogue` }); return }
     bump(v.id, 1)
-    setLast({ ok: true, text: `${v.productName} · ${v.size}/${v.color} → counted ${(draft.counted[v.id] ?? 0) + 1}`, id: v.id })
+    setLast({ ok: true, text: `${v.productName} · ${variantLabel(v.size, v.color)} → counted ${(draft.counted[v.id] ?? 0) + 1}`, id: v.id })
   }
 
   const sheet = draft.order

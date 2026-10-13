@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -131,7 +132,7 @@ export default function POS() {
   const topSellers = useMemo(() => [...variants].sort((a, b) => b.stock - a.stock).slice(0, 18), [variants])
 
   function addVariant(v: VariantView, qty = 1) {
-    if (v.stock <= 0) { toast(`${v.productName} (${v.size}) is out of stock`, 'err'); return }
+    if (v.stock <= 0) { toast(`${v.productName}${v.size ? ` (${v.size})` : ''} is out of stock`, 'err'); return }
     setLines((prev) => {
       const i = prev.findIndex((l) => l.variantId === v.id)
       if (i >= 0) {
@@ -183,7 +184,7 @@ export default function POS() {
     setSelected((s) => (s === variantId ? null : s))
     setEditing((e) => (e === variantId ? null : e))
     setSwapping((e) => (e === variantId ? null : e))
-    toast(`Removed ${gone.name} (${gone.size})`, 'info', {
+    toast(`Removed ${gone.name}${gone.size ? ` (${gone.size})` : ''}`, 'info', {
       label: 'Undo',
       run: () => setLines((prev) => {
         if (prev.some((l) => l.variantId === gone.variantId)) return prev
@@ -195,7 +196,7 @@ export default function POS() {
   /** Swaps a line to another size/colour of the same product without removing and re-scanning. */
   function swapLine(from: CartLine, v: VariantView) {
     if (v.id === from.variantId) { setSwapping(null); return }
-    if (v.stock <= 0) { toast(`${v.size} / ${v.color} is sold out`, 'err'); return }
+    if (v.stock <= 0) { toast(`${variantLabel(v.size, v.color)} is sold out`, 'err'); return }
     setLines((prev) => {
       const existing = prev.find((l) => l.variantId === v.id)
       const qty = Math.min(from.qty + (existing?.qty ?? 0), v.stock)
@@ -436,7 +437,7 @@ export default function POS() {
             {topSellers.map((v) => (
               <button key={v.id} className="quick-tile" disabled={v.stock <= 0} onClick={() => addVariant(v)}>
                 <span className="qt-name">{v.productName}</span>
-                <span className="qt-meta">{v.size} / {v.color}</span>
+                <span className="qt-meta">{variantLabel(v.size, v.color)}</span>
                 <span className="qt-price">{inr(v.price)}</span>
                 <span className="qt-meta">{v.stock} in stock</span>
               </button>

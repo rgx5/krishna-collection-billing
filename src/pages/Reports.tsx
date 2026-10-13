@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
@@ -65,7 +66,7 @@ export default function Reports() {
       if (isCredit) { credits++; creditTotal += b.total } else { positive++; positiveTotal += b.total }
 
       for (const i of b.items) {
-        const it = items.get(i.variantId) ?? { name: i.name, sku: i.sku, variant: `${i.size}/${i.color}`, qty: 0, revenue: 0, cost: 0 }
+        const it = items.get(i.variantId) ?? { name: i.name, sku: i.sku, variant: variantLabel(i.size, i.color), qty: 0, revenue: 0, cost: 0 }
         it.qty += i.qty * f.sign
         it.revenue += i.taxable * f.sign // sales value excluding GST, so margin is a real margin
         it.cost += (i.cost ?? currentCost(i.variantId)) * i.qty * f.sign

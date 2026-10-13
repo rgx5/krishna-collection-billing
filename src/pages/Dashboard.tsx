@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
@@ -204,7 +205,7 @@ export default function Dashboard() {
                             {data.stock.low.map((v) => (
                               <tr key={v.id}>
                                 <td><div className="bold">{v.name}</div><div className="small muted mono">{v.sku}</div></td>
-                                <td>{v.size} / {v.color}</td>
+                                <td>{variantLabel(v.size, v.color)}</td>
                                 <td className="right"><StockBadge stock={v.stock} reorder={v.reorderLevel} /></td>
                               </tr>
                             ))}

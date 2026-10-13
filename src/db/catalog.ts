@@ -1,6 +1,7 @@
 import { db } from './index'
 import { nextBarcode } from './ops'
 import { id } from '../lib/id'
+import { skuFor } from '../lib/variantLabel'
 import type { Product } from './types'
 
 export interface StyleDraft {
@@ -20,7 +21,8 @@ export interface StyleDraft {
 
 /**
  * Creates a style and one barcoded variant (0 stock) for every size × colour — the same thing
- * Inventory → New item does, available to other screens such as Receive stock.
+ * Inventory → New item does, available to other screens such as Receive stock. An item with no sizes or colours
+ * (a saree) passes `colors: ['']` and its types (or `['']` for a single item) as `sizes`.
  */
 export async function createStyle(d: StyleDraft): Promise<{ product: Product; variants: number }> {
   const product: Product = {
@@ -41,7 +43,7 @@ export async function createStyle(d: StyleDraft): Promise<{ product: Product; va
     for (const size of d.sizes) {
       await db.variants.add({
         id: id('var'), productId: product.id,
-        sku: `${product.styleCode}-${color.slice(0, 3).toUpperCase()}-${size}`,
+        sku: skuFor(product.styleCode, color, size),
         barcode: await nextBarcode(), size, color,
         cost: d.cost, mrp: d.mrp || d.price, price: d.price,
         stock: 0, reorderLevel: 3,

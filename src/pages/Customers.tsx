@@ -251,7 +251,7 @@ function CustomerDetail({ customer: c, stat, onClose, onEdit }: {
                     <tr key={b.id}>
                       <td className="mono bold">{b.no}</td>
                       <td className="muted">{fmtDate(b.date)}</td>
-                      <td>{b.items.map((i) => `${i.name} (${i.size})`).join(', ')}</td>
+                      <td>{b.items.map((i) => `${i.name}${i.size ? ` (${i.size})` : ''}`).join(', ')}</td>
                       <td className="num bold" style={{ color: b.total < 0 ? 'var(--danger)' : undefined }}>{inr(b.total)}</td>
                     </tr>
                   ))}

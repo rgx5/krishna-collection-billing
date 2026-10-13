@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
@@ -56,7 +57,7 @@ export default function Labels() {
   const totalLabels = selected.reduce((s, r) => s + r.n, 0)
 
   const labels: LabelSpec[] = selected.map(({ v, n }) => ({
-    barcode: v.barcode, name: v.productName, size: v.size, color: v.color, sku: v.sku, mrp: v.mrp, copies: n,
+    barcode: v.barcode, name: v.productName, size: v.size, color: v.color, sku: v.sku, mrp: v.mrp, price: v.price, copies: n,
   }))
 
   const setN = (vid: string, n: number) => setCopies((c) => ({ ...c, [vid]: Math.max(0, Math.min(999, n)) }))
@@ -145,7 +146,7 @@ export default function Labels() {
                       return (
                         <tr key={v.id} style={mode === 'manual' && n > 0 ? { background: 'var(--brand-50)' } : undefined}>
                           <td><div className="bold">{v.productName}</div><div className="small muted mono">{v.sku}</div></td>
-                          <td>{v.size} / {v.color}</td>
+                          <td>{variantLabel(v.size, v.color)}</td>
                           <td className="mono small">{v.barcode}</td>
                           <td className="num">{v.stock}</td>
                           <td className="num">
@@ -184,7 +185,7 @@ export default function Labels() {
                     {selected.slice(0, 4).map(({ v, n }) => (
                       <div key={v.id} className="label-preview-item">
                         <div className="label-cell label-card">
-                          <LabelFace l={{ barcode: v.barcode, name: v.productName, size: v.size, color: v.color, sku: v.sku, mrp: v.mrp }}
+                          <LabelFace l={{ barcode: v.barcode, name: v.productName, size: v.size, color: v.color, sku: v.sku, mrp: v.mrp, price: v.price }}
                             storeName={settings?.name ?? ''} showMrp={showMrp} widthMm={w} heightMm={h} />
                         </div>
                         <div className="small muted center">× {n}</div>
@@ -218,7 +219,7 @@ export default function Labels() {
         danger
         confirmLabel="Issue new barcode"
         message={<>
-          <strong>{reissue?.productName}</strong> ({reissue?.size} / {reissue?.color}) will get a different barcode.
+          <strong>{reissue?.productName}</strong> ({variantLabel(reissue?.size, reissue?.color)}) will get a different barcode.
           Every label already stuck on a garment of this size will <strong>stop scanning</strong> until you reprint it. Only do this if the current barcode is wrong or duplicated.
         </>}
         onConfirm={() => reissue && void reissueBarcode(reissue)}

@@ -15,7 +15,10 @@ export interface LabelSpec {
   size: string
   color: string
   sku: string
+  /** Maximum retail price printed on the garment. */
   mrp: number
+  /** What the customer pays. Shown next to the MRP when it is lower; falls back to the MRP when missing. */
+  price?: number
   copies: number
 }
 
@@ -36,6 +39,8 @@ export function labelVars(widthMm: number, heightMm: number, gapMm = 0): CSSProp
   const padMm = Math.max(0.8, Math.min(2, 2 * fitScale(heightMm)))
   return {
     '--label-w': `${widthMm}mm`, '--label-h': `${heightMm}mm`, '--label-gap': `${gapMm}mm`, '--label-pad': `${padMm}mm`,
+    // Space between the label's lines shrinks with the label too, so five lines still fit a short sticker.
+    '--label-gy': `${(1.6 * fitScale(heightMm)).toFixed(2)}mm`,
   } as CSSProperties
 }
 
@@ -60,18 +65,26 @@ export function LabelFace({ l, storeName, showMrp = true, heightMm }: {
   // label height): large enough to scan reliably, so the rest of the label is fitted around it.
   const bars = getBarcodeMarkup(l.barcode, { height: 36 * scale, width: 1.25, fontSize: 10 * scale })
   const variant = [l.size, l.color].filter(Boolean).join(' / ')
+  // Both prices when the selling price is below the MRP; otherwise a single figure, so nothing is printed twice.
+  const sell = l.price && l.price > 0 ? l.price : l.mrp
+  const showBoth = showMrp && sell < l.mrp
   return (
     <>
-      <div className="lbl-store" style={{ fontSize: 8 * scale }}>{storeName}</div>
+      <div className="lbl-store" style={{ fontSize: 12.5 * scale }}>{storeName}</div>
       <div className="lbl-line" style={{ fontSize: 10.5 * scale }}>
         <span className="lbl-name">{l.name}</span>
         {variant && <span className="lbl-variant"> · {variant}</span>}
       </div>
       <span className="lbl-bar" dangerouslySetInnerHTML={{ __html: bars }} />
-      <div className="lbl-foot" style={{ fontSize: 10.5 * scale }}>
-        {showMrp ? <span className="lbl-mrp">MRP {price(l.mrp)}</span> : <span />}
-        <span className="lbl-sku">{l.sku}</span>
+      <div className="lbl-foot" style={{ fontSize: 10.5 * scale, justifyContent: showBoth ? 'space-between' : 'center' }}>
+        {showBoth ? (
+          <>
+            <span className="lbl-mrp">MRP {price(l.mrp)}</span>
+            <span className="lbl-price">Price {price(sell)}</span>
+          </>
+        ) : <span className="lbl-mrp">{showMrp ? `MRP ${price(l.mrp)}` : `Price ${price(sell)}`}</span>}
       </div>
+      <div className="lbl-skuline" style={{ fontSize: 9 * scale }}><span className="lbl-sku">{l.sku}</span></div>
     </>
   )
 }

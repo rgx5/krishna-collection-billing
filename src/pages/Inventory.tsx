@@ -9,6 +9,7 @@ import { useDebounced } from '../lib/useDebounced'
 import { sizeRank } from '../lib/posSearch'
 import { Field, Modal, Empty, Confirm } from '../components/ui'
 import { TagInput, parseTags } from '../components/TagInput'
+import { skuFor } from '../lib/variantLabel'
 import { Download, InventoryIcon, PencilIcon, Plus, Search, TrashIcon, Upload } from '../components/icons'
 import { useApp } from '../state'
 import type { Category, Product, Variant } from '../db/types'
@@ -23,11 +24,13 @@ const SIZE_PRESETS: Record<string, string> = {
 interface Draft {
   styleCode: string; name: string; categoryId: string; brand: string; fabric: string
   season: string; hsn: string; sizes: string; colors: string; cost: string; mrp: string; price: string
+  /** No sizes or colours (sarees): `sizes` then holds optional type names, and there is no colour. */
+  plain: boolean
 }
 
 const EMPTY: Draft = {
   styleCode: '', name: '', categoryId: '', brand: '', fabric: '', season: 'All Season',
-  hsn: '6205', sizes: 'S, M, L, XL, XXL', colors: '', cost: '', mrp: '', price: '',
+  hsn: '6205', sizes: 'S, M, L, XL, XXL', colors: '', cost: '', mrp: '', price: '', plain: false,
 }
 
 type StockFilter = '' | 'low' | 'out' | 'ok'
@@ -146,13 +149,16 @@ export default function Inventory() {
     name: tried && !draft.name.trim(),
     style: tried && !draft.styleCode.trim(),
     price: tried && draftPrice <= 0,
-    sizes: tried && !sizes.length,
-    colors: tried && !colors.length,
+    sizes: tried && !draft.plain && !sizes.length,
+    colors: tried && !draft.plain && !colors.length,
   }
+  // What actually gets created: a plain item is one variant per type name (or a single one) and never has a colour.
+  const makeSizes = draft.plain ? (sizes.length ? sizes : ['']) : sizes
+  const makeColors = draft.plain ? [''] : colors
 
   async function createProduct() {
     setTried(true)
-    if (!draft.name.trim() || !draft.styleCode.trim() || !sizes.length || !colors.length || draftPrice <= 0) {
+    if (!draft.name.trim() || !draft.styleCode.trim() || !makeSizes.length || !makeColors.length || draftPrice <= 0) {
       toast('Fill the highlighted fields to continue', 'err'); return
     }
     const styleCode = draft.styleCode.trim().toUpperCase()
@@ -168,11 +174,11 @@ export default function Inventory() {
     await db.products.add(product)
 
     let made = 0
-    for (const color of colors) {
-      for (const size of sizes) {
+    for (const color of makeColors) {
+      for (const size of makeSizes) {
         await db.variants.add({
           id: id('var'), productId,
-          sku: `${product.styleCode}-${color.slice(0, 3).toUpperCase()}-${size}`,
+          sku: skuFor(product.styleCode, color, size),
           barcode: await nextBarcode(), size, color,
           cost: Number(draft.cost) || 0, mrp: Number(draft.mrp) || draftPrice, price: draftPrice,
           stock: 0, reorderLevel: 3,
@@ -242,7 +248,7 @@ export default function Inventory() {
       }
       const nv: Variant = {
         id: id('var'), productId: product.id,
-        sku: r.sku || `${product.styleCode}-${r.color?.slice(0, 3).toUpperCase()}-${r.size}`,
+        sku: r.sku || skuFor(product.styleCode, r.color ?? '', r.size ?? ''),
         barcode: r.barcode || (await nextBarcode()),
         size: r.size || 'Free', color: r.color || 'Assorted',
         cost: Number(r.cost) || 0, mrp: Number(r.mrp) || 0, price: Number(r.price) || Number(r.mrp) || 0,
@@ -326,7 +332,7 @@ export default function Inventory() {
                               {r.low > 0 && <span className="badge badge-warn">{r.low} low</span>}
                             </span>
                           </div>
-                          <StockMix total={r.variants.length} low={r.low} out={r.out} />
+                          {r.variants.length ? <StockMix total={r.variants.length} low={r.low} out={r.out} /> : <div className="tiny muted" style={{ marginTop: 4 }}>No sizes added yet</div>}
                         </td>
                         <td className="num">{r.minPrice === r.maxPrice ? inr(r.maxPrice) : `${inr(r.minPrice)}–${inr(r.maxPrice)}`}</td>
                         <td className="num">{inr(r.value)}</td>
@@ -354,7 +360,7 @@ export default function Inventory() {
         <>
           <button className="btn" onClick={() => setCreating(false)}>Cancel</button>
           <button className="btn btn-primary btn-lg" onClick={createProduct}>
-            Create {sizes.length && colors.length ? `${sizes.length * colors.length} variants` : 'item'} &amp; barcodes
+            Create {makeSizes.length && makeColors.length ? (makeSizes.length * makeColors.length === 1 ? '1 item' : `${makeSizes.length * makeColors.length} variants`) : 'item'} &amp; barcodes
           </button>
         </>
       }>
@@ -397,23 +403,47 @@ export default function Inventory() {
         <div className="form-section">
           <h3>Sizes &amp; colours</h3>
           <div className="row gap-6 wrap" style={{ marginBottom: 10 }}>
-            <span className="small muted">Size preset</span>
-            {Object.entries(SIZE_PRESETS).map(([label, val]) => (
-              <button key={label} type="button" className={`chip ${draft.sizes === val ? 'on' : ''}`} onClick={() => setDraft({ ...draft, sizes: val })}>{label}</button>
-            ))}
+            <button type="button" className={`chip ${!draft.plain ? 'on' : ''}`}
+              onClick={() => setDraft({ ...draft, plain: false, sizes: EMPTY.sizes, colors: '' })}>Has sizes &amp; colours</button>
+            <button type="button" className={`chip ${draft.plain ? 'on' : ''}`}
+              onClick={() => setDraft({ ...draft, plain: true, sizes: '', colors: '' })}>No sizes or colours (sarees, etc.)</button>
           </div>
-          <div className="grid grid-2">
-            <Field label="Sizes *" hint="Type a size and press Enter"><TagInput value={draft.sizes} invalid={bad.sizes} onChange={(v) => setDraft({ ...draft, sizes: v })} placeholder="S, M, L…" /></Field>
-            <Field label="Colours *" hint="Type a colour and press Enter"><TagInput value={draft.colors} invalid={bad.colors} onChange={(v) => setDraft({ ...draft, colors: v })} placeholder="White, Navy, Black…" /></Field>
-          </div>
-          <div className="variant-preview">
-            {sizes.length && colors.length ? (
-              <>
-                <b>{sizes.length * colors.length} variants</b> ({sizes.length} sizes × {colors.length} colours), each with its own SKU and EAN-13 barcode.
-                {' '}First one: <span className="mono">{(draft.styleCode || 'STYLE').toUpperCase()}-{colors[0].slice(0, 3).toUpperCase()}-{sizes[0]}</span>
-              </>
-            ) : <>Add at least one size and one colour — each combination becomes a barcoded SKU. Print labels from <b>Barcode Labels</b>.</>}
-          </div>
+          {draft.plain ? (
+            <>
+              <Field label="Types / varieties (optional)" hint="e.g. Kanjivaram, Banarasi, Cotton — each one becomes its own barcoded item. Leave empty for a single item.">
+                <TagInput value={draft.sizes} onChange={(v) => setDraft({ ...draft, sizes: v })} placeholder="Kanjivaram, Banarasi…" />
+              </Field>
+              <div className="variant-preview">
+                {sizes.length ? (
+                  <>
+                    <b>{sizes.length} items</b> — {draft.name.trim() || 'Item'} · {sizes.join(', ')} — each with its own SKU and EAN-13 barcode.
+                    {' '}First one: <span className="mono">{skuFor(draft.styleCode || 'STYLE', '', sizes[0])}</span>
+                  </>
+                ) : <>One item with a single SKU and barcode: <span className="mono">{skuFor(draft.styleCode || 'STYLE', '', '')}</span></>}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="row gap-6 wrap" style={{ marginBottom: 10 }}>
+                <span className="small muted">Size preset</span>
+                {Object.entries(SIZE_PRESETS).map(([label, val]) => (
+                  <button key={label} type="button" className={`chip ${draft.sizes === val ? 'on' : ''}`} onClick={() => setDraft({ ...draft, sizes: val })}>{label}</button>
+                ))}
+              </div>
+              <div className="grid grid-2">
+                <Field label="Sizes *" hint="Type a size and press Enter"><TagInput value={draft.sizes} invalid={bad.sizes} onChange={(v) => setDraft({ ...draft, sizes: v })} placeholder="S, M, L…" /></Field>
+                <Field label="Colours *" hint="Type a colour and press Enter"><TagInput value={draft.colors} invalid={bad.colors} onChange={(v) => setDraft({ ...draft, colors: v })} placeholder="White, Navy, Black…" /></Field>
+              </div>
+              <div className="variant-preview">
+                {sizes.length && colors.length ? (
+                  <>
+                    <b>{sizes.length * colors.length} variants</b> ({sizes.length} sizes × {colors.length} colours), each with its own SKU and EAN-13 barcode.
+                    {' '}First one: <span className="mono">{skuFor(draft.styleCode || 'STYLE', colors[0], sizes[0])}</span>
+                  </>
+                ) : <>Add at least one size and one colour — each combination becomes a barcoded SKU. Print labels from <b>Barcode Labels</b>.</>}
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
@@ -434,7 +464,8 @@ export default function Inventory() {
 
 /** Thin bar showing how many of a style's variants are healthy / low / sold out. */
 function StockMix({ total, low, out }: { total: number; low: number; out: number }) {
-  if (!total) return <div className="stock-mix empty" />
+  // No sizes yet: nothing to draw. (The old `empty` class here collided with the global empty-state style and became a huge pill.)
+  if (!total) return null
   const pct = (n: number) => `${(n / total) * 100}%`
   return (
     <div className="stock-mix" role="img" aria-label={`${total - low - out} healthy, ${low} low, ${out} out of stock`}>
@@ -488,7 +519,7 @@ function ProductEditor({ product, variants, categories, onClose, userId }: {
         if (cell(size, color)) continue
         await db.variants.add({
           id: id('var'), productId: product.id,
-          sku: `${product.styleCode}-${color.slice(0, 3).toUpperCase()}-${size}`,
+          sku: skuFor(product.styleCode, color, size),
           barcode: await nextBarcode(), size, color,
           cost: base?.cost ?? 0, mrp: base?.mrp ?? 0, price: base?.price ?? 0,
           stock: 0, reorderLevel: base?.reorderLevel ?? 3,
@@ -577,14 +608,14 @@ function ProductEditor({ product, variants, categories, onClose, userId }: {
               <thead>
                 <tr>
                   <th className="corner">Colour \ Size</th>
-                  {sizes.map((s) => <th key={s}>{s}</th>)}
+                  {sizes.map((s) => <th key={s}>{s || '—'}</th>)}
                   <th>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {colors.map((c) => (
                   <tr key={c}>
-                    <th className="corner">{c}</th>
+                    <th className="corner">{c || '—'}</th>
                     {sizes.map((s) => {
                       const v = cell(s, c)
                       if (!v) return <td key={s} className="cell-zero">—</td>

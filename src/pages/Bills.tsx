@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
@@ -347,7 +348,7 @@ function BillDetail({ bill, settings, customer, cashier, position, onPrev, onNex
                     <tr key={x}>
                       <td>
                         <div className="bold">{i.name}</div>
-                        <div className="small muted">{i.size} / {i.color} · <span className="mono">{i.sku}</span></div>
+                        <div className="small muted">{variantLabel(i.size, i.color)} · <span className="mono">{i.sku}</span></div>
                       </td>
                       <td className="num">{i.qty}{i.returnedQty > 0 && <span className="badge badge-danger" style={{ marginLeft: 6 }}>−{i.returnedQty} returned</span>}</td>
                       <td className="num">
@@ -443,7 +444,7 @@ function ReturnModal({ bill, onClose, onDone }: {
               const q = qty[i.variantId] ?? 0
               return (
                 <tr key={i.variantId} style={q > 0 ? { background: 'var(--danger-bg)' } : undefined}>
-                  <td><div className="bold">{i.name}</div><div className="small muted">{i.size} / {i.color} · {i.sku}</div></td>
+                  <td><div className="bold">{i.name}</div><div className="small muted">{variantLabel(i.size, i.color)} · {i.sku}</div></td>
                   <td className="num">{i.qty}</td>
                   <td className="num">{i.returnedQty || '—'}</td>
                   <td className="num">

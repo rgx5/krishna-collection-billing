@@ -1207,13 +1207,15 @@ table.tbl th { font-weight: 700; }
 }
 
 /* ---- Garment label v3: plain text everywhere; only the barcode is emphasised ---- */
-.label-sheet .label-cell, .label-card { justify-content: center; gap: 1.6mm; }
+.label-sheet .label-cell, .label-card { justify-content: center; gap: var(--label-gy, 1.6mm); }
 .label-cell .lbl-store { font-weight: 400; text-transform: none; letter-spacing: .02em; border-bottom: 0; padding: 0; margin: 0; line-height: 1.2; }
 .label-cell .lbl-line { display: flex; justify-content: center; align-items: baseline; min-width: 0; line-height: 1.2; font-weight: 400; }
 .label-cell .lbl-name { font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .label-cell .lbl-variant { flex: 0 0 auto; white-space: pre; font-weight: 400; }
 .label-cell .lbl-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; line-height: 1.2; font-weight: 400; }
 .label-cell .lbl-mrp { font-weight: 400; }
+.label-cell .lbl-price { font-weight: 400; white-space: nowrap; }
+.label-cell .lbl-skuline { text-align: center; line-height: 1.15; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .label-cell .lbl-sku { font-family: var(--font); font-weight: 400; font-size: inherit !important; margin-left: auto; }
 
 /* Expenses */

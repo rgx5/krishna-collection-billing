@@ -1,3 +1,4 @@
+import { variantLabel } from '../lib/variantLabel'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -81,7 +82,7 @@ export default function Purchases() {
 
   const labelsFor = (p: Purchase): LabelSpec[] => p.items.map((it) => {
     const v = vMap.get(it.variantId)
-    return v ? { barcode: v.barcode, name: v.productName, size: v.size, color: v.color, sku: v.sku, mrp: v.mrp, copies: it.qty } : null
+    return v ? { barcode: v.barcode, name: v.productName, size: v.size, color: v.color, sku: v.sku, mrp: v.mrp, price: v.price, copies: it.qty } : null
   }).filter(Boolean) as LabelSpec[]
 
   function printLabels(p: Purchase) {
@@ -242,7 +243,7 @@ export default function Purchases() {
                   return (
                     <tr key={i}>
                       <td><div className="bold">{v?.productName ?? 'Removed item'}</div><div className="small muted mono">{v?.sku}</div></td>
-                      <td>{v ? `${v.size} / ${v.color}` : '—'}</td>
+                      <td>{v ? variantLabel(v.size, v.color) : '—'}</td>
                       <td className="num">{it.qty}</td>
                       <td className="num">{inr(it.cost)}</td>
                       <td className="num bold">{inr(it.qty * it.cost)}</td>
@@ -414,7 +415,7 @@ function GrnModal({ suppliers, variants, categories, products, onClose, onSave, 
       const line: PurchaseItem = existing ? { ...existing, qty: existing.qty + qty } : { variantId: v.id, qty, cost: v.cost }
       return [line, ...prev.filter((x) => x.variantId !== v.id)]
     })
-    setLast({ ok: true, text: `${v.productName} · ${v.size}/${v.color} → ${current + qty} received`, id: v.id })
+    setLast({ ok: true, text: `${v.productName} · ${variantLabel(v.size, v.color)} → ${current + qty} received`, id: v.id })
     setQ('')
     scanRef.current?.focus()
   }
@@ -503,7 +504,7 @@ function GrnModal({ suppliers, variants, categories, products, onClose, onSave, 
                       onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setHighlight(i)} onClick={() => add(m, parsed.qty)}>
                       <span className="search-drop-info">
                         <span className="search-drop-name">{m.productName}</span>
-                        <span className="search-drop-meta">{m.size} / {m.color} · {m.sku}</span>
+                        <span className="search-drop-meta">{variantLabel(m.size, m.color)} · {m.sku}</span>
                       </span>
                       <span className="search-drop-aside"><span className="badge">In stock {m.stock}</span></span>
                     </button>
@@ -541,7 +542,7 @@ function GrnModal({ suppliers, variants, categories, products, onClose, onSave, 
                       return (
                         <tr key={it.variantId} style={last?.id === it.variantId ? { background: 'var(--brand-50)' } : undefined}>
                           <td><div className="bold">{v.productName}</div><div className="small muted mono">{v.sku}</div></td>
-                          <td>{v.size} / {v.color}</td>
+                          <td>{variantLabel(v.size, v.color)}</td>
                           <td className="num">
                             <input className="input num cell-input" inputMode="numeric" value={it.qty} aria-label={`Quantity ${v.sku}`}
                               onFocus={(e) => e.currentTarget.select()}

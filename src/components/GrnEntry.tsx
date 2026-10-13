@@ -143,7 +143,7 @@ export function NewItemPanel({ categories, products, onCreated }: {
   onCreated: (product: Product, variants: number) => void
 }) {
   const { toast } = useApp()
-  const [d, setD] = useState({ name: '', styleCode: '', categoryId: '', brand: '', sizes: 'S, M, L, XL, XXL', colors: '', cost: '', mrp: '', price: '' })
+  const [d, setD] = useState({ name: '', styleCode: '', categoryId: '', brand: '', sizes: 'S, M, L, XL, XXL', colors: '', cost: '', mrp: '', price: '', plain: false })
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -152,16 +152,19 @@ export function NewItemPanel({ categories, products, onCreated }: {
   const price = Number(d.price) || Number(d.mrp) || 0
   const styleCode = d.styleCode.trim().toUpperCase()
   const taken = !!styleCode && products.some((p) => p.styleCode === styleCode)
-  const bad = { name: tried && !d.name.trim(), style: (tried && !styleCode) || taken, price: tried && price <= 0, sizes: tried && !sizes.length, colors: tried && !colors.length }
+  const bad = { name: tried && !d.name.trim(), style: (tried && !styleCode) || taken, price: tried && price <= 0, sizes: tried && !d.plain && !sizes.length, colors: tried && !d.plain && !colors.length }
+  // A plain item (saree) is one variant per type name, or a single one, and has no colour.
+  const makeSizes = d.plain ? (sizes.length ? sizes : ['']) : sizes
+  const makeColors = d.plain ? [''] : colors
 
   async function create() {
     setTried(true)
-    if (!d.name.trim() || !styleCode || taken || !sizes.length || !colors.length || price <= 0) { toast('Fill the highlighted fields to continue', 'err'); return }
+    if (!d.name.trim() || !styleCode || taken || !makeSizes.length || !makeColors.length || price <= 0) { toast('Fill the highlighted fields to continue', 'err'); return }
     setBusy(true)
     try {
       const { product, variants } = await createStyle({
         name: d.name, styleCode, categoryId: d.categoryId || categories[0]?.id || '', brand: d.brand, fabric: '', season: 'All Season', hsn: '6205',
-        sizes, colors, cost: Number(d.cost) || 0, mrp: Number(d.mrp) || price, price,
+        sizes: makeSizes, colors: makeColors, cost: Number(d.cost) || 0, mrp: Number(d.mrp) || price, price,
       })
       toast(`${product.name} created — ${variants} variants with barcodes`, 'ok')
       onCreated(product, variants)
@@ -190,6 +193,15 @@ export function NewItemPanel({ categories, products, onCreated }: {
         <Field label="Selling price (₹) *"><input className={`input num ${bad.price ? 'invalid' : ''}`} inputMode="decimal" value={d.price} onChange={(e) => setD({ ...d, price: e.target.value.replace(/[^\d.]/g, '') })} /></Field>
       </div>
       <div className="row gap-6 wrap" style={{ margin: '14px 0 8px' }}>
+        <button type="button" className={`chip ${!d.plain ? 'on' : ''}`} onClick={() => setD({ ...d, plain: false, sizes: 'S, M, L, XL, XXL', colors: '' })}>Has sizes &amp; colours</button>
+        <button type="button" className={`chip ${d.plain ? 'on' : ''}`} onClick={() => setD({ ...d, plain: true, sizes: '', colors: '' })}>No sizes or colours (sarees, etc.)</button>
+      </div>
+      {d.plain ? (
+        <Field label="Types / varieties (optional)" hint="e.g. Kanjivaram, Banarasi — each becomes its own barcoded item. Leave empty for a single item.">
+          <TagInput value={d.sizes} onChange={(v) => setD({ ...d, sizes: v })} placeholder="Kanjivaram, Banarasi…" />
+        </Field>
+      ) : (<>
+      <div className="row gap-6 wrap" style={{ margin: '0 0 8px' }}>
         <span className="small muted">Size preset</span>
         {Object.entries(SIZE_PRESETS).map(([label, val]) => (
           <button key={label} type="button" className={`chip ${d.sizes === val ? 'on' : ''}`} onClick={() => setD({ ...d, sizes: val })}>{label}</button>
@@ -199,9 +211,10 @@ export function NewItemPanel({ categories, products, onCreated }: {
         <Field label="Sizes *"><TagInput value={d.sizes} invalid={bad.sizes} onChange={(v) => setD({ ...d, sizes: v })} placeholder="S, M, L…" /></Field>
         <Field label="Colours *"><TagInput value={d.colors} invalid={bad.colors} onChange={(v) => setD({ ...d, colors: v })} placeholder="White, Navy…" /></Field>
       </div>
+      </>)}
       <div className="row between" style={{ marginTop: 14 }}>
         <span className="small muted">
-          {sizes.length && colors.length ? <><b>{sizes.length * colors.length} variants</b> will be created with their own barcodes, at 0 stock.</> : 'Add at least one size and one colour.'}
+          {makeSizes.length && makeColors.length ? <><b>{makeSizes.length * makeColors.length === 1 ? '1 item' : `${makeSizes.length * makeColors.length} variants`}</b> will be created with their own barcodes, at 0 stock.</> : 'Add at least one size and one colour.'}
         </span>
         <button className="btn btn-primary btn-lg" disabled={busy} onClick={() => void create()}>Create item &amp; enter quantities</button>
       </div>
