@@ -4,6 +4,9 @@ import { buildIndex, searchGroups, sizeRank } from '../lib/posSearch'
 import { createStyle } from '../db/catalog'
 import { Field } from './ui'
 import { TagInput, parseTags } from './TagInput'
+import { CategoryPicker } from './CategoryPicker'
+import { nextStyleCode, sortCategories } from '../lib/styleCode'
+import { moveOnEnter } from '../lib/formNav'
 import { useApp } from '../state'
 import type { VariantView } from '../db/ops'
 import type { Category, Product } from '../db/types'
@@ -143,7 +146,18 @@ export function NewItemPanel({ categories, products, onCreated }: {
   onCreated: (product: Product, variants: number) => void
 }) {
   const { toast } = useApp()
-  const [d, setD] = useState({ name: '', styleCode: '', categoryId: '', brand: '', sizes: 'S, M, L, XL, XXL', colors: '', cost: '', mrp: '', price: '', plain: false })
+  const cats = sortCategories(categories)
+  const [d, setD] = useState(() => ({
+    name: '', styleCode: cats[0] ? nextStyleCode(cats[0], products) : '', categoryId: cats[0]?.id ?? '', brand: '',
+    sizes: 'S, M, L, XL, XXL', colors: '', cost: '', mrp: '', price: '', plain: false,
+  }))
+  const [codeTouched, setCodeTouched] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const pickCategory = (categoryId: string) => {
+    const cat = cats.find((c) => c.id === categoryId)
+    setD((x) => ({ ...x, categoryId, styleCode: codeTouched || !cat ? x.styleCode : nextStyleCode(cat, products) }))
+    setTimeout(() => nameRef.current?.focus(), 0)
+  }
   const [tried, setTried] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -172,18 +186,13 @@ export function NewItemPanel({ categories, products, onCreated }: {
   }
 
   return (
-    <div>
-      <div className="grid grid-3">
-        <Field label="Item name *"><input className={`input ${bad.name ? 'invalid' : ''}`} autoFocus value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Oxford Casual Shirt" /></Field>
-        <Field label="Style code *" hint={taken ? undefined : 'Becomes the SKU prefix'}>
-          <input className={`input ${bad.style ? 'invalid' : ''}`} value={d.styleCode} onChange={(e) => setD({ ...d, styleCode: e.target.value.toUpperCase() })} placeholder="MS-103" />
+    <div onKeyDown={(e) => moveOnEnter(e, () => void create())}>
+      <CategoryPicker categories={cats} value={d.categoryId} onPick={pickCategory} />
+      <div className="grid grid-3" style={{ marginTop: 12 }}>
+        <Field label="Item name *"><input ref={nameRef} className={`input ${bad.name ? 'invalid' : ''}`} autoFocus value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="Oxford Casual Shirt" /></Field>
+        <Field label="Style code *" hint={taken ? undefined : codeTouched ? 'Becomes the SKU prefix' : 'Made automatically — change it if you like'}>
+          <input className={`input ${bad.style ? 'invalid' : ''}`} value={d.styleCode} onChange={(e) => { setCodeTouched(true); setD({ ...d, styleCode: e.target.value.toUpperCase() }) }} placeholder="WS-101" />
           {taken && <span className="small" style={{ color: 'var(--danger)', fontWeight: 650 }}>{styleCode} already exists</span>}
-        </Field>
-        <Field label="Category">
-          <select className="select" value={d.categoryId} onChange={(e) => setD({ ...d, categoryId: e.target.value })}>
-            <option value="">Select…</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.group} — {c.name}</option>)}
-          </select>
         </Field>
       </div>
       <div className="grid grid-4" style={{ marginTop: 12 }}>

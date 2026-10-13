@@ -10,6 +10,9 @@ import { sizeRank } from '../lib/posSearch'
 import { Field, Modal, Empty, Confirm } from '../components/ui'
 import { TagInput, parseTags } from '../components/TagInput'
 import { skuFor } from '../lib/variantLabel'
+import { nextStyleCode, sortCategories } from '../lib/styleCode'
+import { moveOnEnter } from '../lib/formNav'
+import { CategoryPicker } from '../components/CategoryPicker'
 import { Download, InventoryIcon, PencilIcon, Plus, Search, TrashIcon, Upload } from '../components/icons'
 import { useApp } from '../state'
 import type { Category, Product, Variant } from '../db/types'
@@ -58,12 +61,15 @@ export default function Inventory() {
   const { toast, user } = useApp()
   const products = useLiveQuery(() => db.products.toArray(), [], [] as Product[]) ?? []
   const variants = useLiveQuery(() => db.variants.toArray(), [], [] as Variant[]) ?? []
-  const categories = useLiveQuery(() => db.categories.toArray(), [], [] as Category[]) ?? []
+  const categories = useLiveQuery(() => db.categories.toArray().then(sortCategories), [], [] as Category[]) ?? []
 
   const [q, setQ] = useState('')
   const [stockFilter, setStockFilter] = useState<StockFilter>('')
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY)
+  // Once someone types their own style code, picking another category stops overwriting it.
+  const [codeTouched, setCodeTouched] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
   const [tried, setTried] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [deleting, setDeleting] = useState<Product | null>(null)
@@ -139,7 +145,19 @@ export default function Inventory() {
   })
   useEffect(() => { document.querySelector('.inv-row.sel')?.scrollIntoView({ block: 'nearest' }) }, [sel])
 
-  function openNew() { setDraft(EMPTY); setTried(false); setCreating(true) }
+  function openNew() {
+    // Starts on the first category (Sarees) with its next style code ready, so a new item only needs a name and price.
+    const first = categories[0]
+    setCodeTouched(false)
+    setDraft({ ...EMPTY, categoryId: first?.id ?? '', styleCode: first ? nextStyleCode(first, products) : '' })
+    setTried(false); setCreating(true)
+  }
+
+  function pickCategory(categoryId: string) {
+    const cat = categories.find((c) => c.id === categoryId)
+    setDraft((d) => ({ ...d, categoryId, styleCode: codeTouched || !cat ? d.styleCode : nextStyleCode(cat, products) }))
+    setTimeout(() => nameRef.current?.focus(), 0)
+  }
 
   const sizes = parseTags(draft.sizes)
   const colors = parseTags(draft.colors)
@@ -364,16 +382,18 @@ export default function Inventory() {
           </button>
         </>
       }>
+        <div onKeyDown={(e) => moveOnEnter(e, () => void createProduct())}>
+        <div className="form-section">
+          <h3>Category</h3>
+          <CategoryPicker categories={categories} value={draft.categoryId} onPick={pickCategory} />
+        </div>
+
         <div className="form-section">
           <h3>Item</h3>
           <div className="grid grid-3">
-            <Field label="Item name *"><input className={`input ${bad.name ? 'invalid' : ''}`} autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Oxford Casual Shirt" /></Field>
-            <Field label="Style code *" hint="Becomes the SKU prefix"><input className={`input ${bad.style ? 'invalid' : ''}`} value={draft.styleCode} onChange={(e) => setDraft({ ...draft, styleCode: e.target.value.toUpperCase() })} placeholder="MS-103" /></Field>
-            <Field label="Category">
-              <select className="select" value={draft.categoryId} onChange={(e) => setDraft({ ...draft, categoryId: e.target.value })}>
-                <option value="">Select…</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.group} — {c.name}</option>)}
-              </select>
+            <Field label="Item name *"><input ref={nameRef} className={`input ${bad.name ? 'invalid' : ''}`} autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Oxford Casual Shirt" /></Field>
+            <Field label="Style code *" hint={codeTouched ? 'Becomes the SKU prefix' : 'Made automatically from the category — change it if you like'}>
+              <input className={`input ${bad.style ? 'invalid' : ''}`} value={draft.styleCode} onChange={(e) => { setCodeTouched(true); setDraft({ ...draft, styleCode: e.target.value.toUpperCase() }) }} placeholder="WS-101" />
             </Field>
             <Field label="Brand"><input className="input" value={draft.brand} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} /></Field>
             <Field label="Fabric"><input className="input" value={draft.fabric} onChange={(e) => setDraft({ ...draft, fabric: e.target.value })} placeholder="Cotton" /></Field>
@@ -444,6 +464,7 @@ export default function Inventory() {
               </div>
             </>
           )}
+        </div>
         </div>
       </Modal>
 

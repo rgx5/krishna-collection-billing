@@ -58,7 +58,8 @@ export function Invoice({ bill, settings, customer, cashier }: {
             <th style={{ width: 58 }}>HSN</th>
             <th style={{ width: 48 }}>Size</th>
             <th className="num" style={{ width: 40 }}>Qty</th>
-            <th className="num" style={{ width: 70 }}>Rate</th>
+            <th className="num" style={{ width: 62 }}>MRP</th>
+            <th className="num" style={{ width: 70 }}>Price</th>
             <th className="num" style={{ width: 66 }}>Disc</th>
             <th className="num" style={{ width: 76 }}>Taxable</th>
             <th className="num" style={{ width: 48 }}>GST%</th>
@@ -69,10 +70,11 @@ export function Invoice({ bill, settings, customer, cashier }: {
           {bill.items.map((it, i) => (
             <tr key={i}>
               <td>{i + 1}</td>
-              <td>{it.name}<div style={{ fontSize: 10, color: '#555' }}>{it.color} · {it.sku}</div></td>
+              <td>{it.name}<div style={{ fontSize: 10, color: '#555' }}>{[it.color, it.sku].filter(Boolean).join(' · ')}</div></td>
               <td>{it.hsn}</td>
               <td>{it.size}</td>
               <td className="num">{it.qty}</td>
+              <td className="num">{inr(it.mrp)}</td>
               <td className="num">{inr(it.price)}</td>
               <td className="num">{it.discountAmount ? inr(it.discountAmount) : '—'}</td>
               <td className="num">{inr(it.taxable)}</td>

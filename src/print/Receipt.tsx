@@ -2,6 +2,7 @@ import { Barcode } from '../components/ui'
 import { amountInWords, inr, round2 } from '../lib/money'
 import { hsnSummary } from '../lib/gst'
 import { receiptOptions } from '../lib/receiptOptions'
+import { variantLabel } from '../lib/variantLabel'
 import type { Bill, Customer, StoreSettings, User } from '../db/types'
 
 const dt = (ms: number) =>
@@ -51,9 +52,12 @@ export function Receipt({ bill, settings, customer, cashier }: {
             <tr key={i}>
               <td colSpan={2}>
                 <div><strong>{i + 1}. {it.name}</strong></div>
-                <div>{[it.size, it.color].filter(Boolean).join(' / ')} · {it.sku}</div>
+                <div>{[variantLabel(it.size, it.color), it.sku].filter(Boolean).join(' · ')}</div>
                 <table>
                   <tbody>
+                    {it.mrp > it.price && (
+                      <tr><td>MRP {inr(it.mrp)}</td><td className="r">Price {inr(it.price)}</td></tr>
+                    )}
                     <tr>
                       <td>{it.qty} x {inr(it.price)}{it.discountAmount > 0 ? ` (-${inr(it.discountAmount)})` : ''}</td>
                       <td className="r"><strong>{inr(it.lineTotal)}</strong></td>

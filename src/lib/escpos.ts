@@ -2,6 +2,7 @@ import type { Bill, Customer, StoreSettings, User } from '../db/types'
 import { round2, amountInWords } from './money'
 import { hsnSummary } from './gst'
 import { receiptOptions } from './receiptOptions'
+import { variantLabel } from './variantLabel'
 
 const ESC = 0x1b
 const GS = 0x1d
@@ -103,7 +104,8 @@ export function buildReceiptEscPos(bill: Bill, settings: StoreSettings, customer
 
   for (const [i, it] of bill.items.entries()) {
     p.bold(true).line(`${i + 1}. ${it.name}`).bold(false)
-    p.line(`${[it.size, it.color].filter(Boolean).join(' / ')} . ${it.sku}`)
+    p.line([variantLabel(it.size, it.color), it.sku].filter(Boolean).join(' . '))
+    if (it.mrp > it.price) p.row(`MRP ${money(it.mrp)}`, `Price ${money(it.price)}`, width)
     const left = `${it.qty} x ${money(it.price)}${it.discountAmount > 0 ? ` (-${money(it.discountAmount)})` : ''}`
     p.row(left, money(it.lineTotal), width)
   }
