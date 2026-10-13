@@ -252,6 +252,22 @@ export default function Settings() {
               </section>
 
               <section className="card">
+                <div className="card-head"><h2>What the printed bill shows</h2></div>
+                <div className="card-body">
+                  <div className="col gap-8">
+                    <label className="checkbox"><input type="checkbox" checked={f.receiptShowTax === true} onChange={(e) => set({ receiptShowTax: e.target.checked })} />Tax split — taxable value, CGST and SGST</label>
+                    <label className="checkbox"><input type="checkbox" checked={f.receiptShowHsn === true} onChange={(e) => set({ receiptShowHsn: e.target.checked })} />HSN summary at the bottom</label>
+                    <label className="checkbox"><input type="checkbox" checked={f.receiptShowSavings !== false} onChange={(e) => set({ receiptShowSavings: e.target.checked })} />"You saved ₹… on this bill" line</label>
+                    <label className="checkbox"><input type="checkbox" checked={f.receiptShowLoyalty !== false} onChange={(e) => set({ receiptShowLoyalty: e.target.checked })} />Loyalty points line</label>
+                  </div>
+                  <div className="small muted" style={{ marginTop: 12 }}>
+                    Applies to the receipt printed at the counter, on every device. The A4 tax invoice always shows the full tax split. A GST tax invoice
+                    normally has to show CGST/SGST — turn the tax split off only if your accountant is happy with it.
+                  </div>
+                </div>
+              </section>
+
+              <section className="card">
                 <div className="card-head"><h2>Barcode labels</h2></div>
                 <div className="card-body">
                   <div className="small muted" style={{ marginBottom: 14 }}>

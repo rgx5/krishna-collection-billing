@@ -10,6 +10,8 @@ export function storeRow(s: Record<string, any>) {
     priceIncludesTax: s.price_includes_tax, receiptWidth: s.receipt_width, returnPolicy: s.return_policy,
     footerNote: s.footer_note, loyaltyEarnPct: Number(s.loyalty_earn_pct), loyaltyRedeemValue: Number(s.loyalty_redeem_value),
     maxCashierDiscountPct: Number(s.max_cashier_discount_pct), lowStockDefault: s.low_stock_default, plan: s.plan,
+    receiptShowTax: s.receipt_show_tax, receiptShowHsn: s.receipt_show_hsn,
+    receiptShowSavings: s.receipt_show_savings, receiptShowLoyalty: s.receipt_show_loyalty,
   }
 }
 
@@ -33,6 +35,8 @@ export class StoreController {
       receiptWidth: 'receipt_width', returnPolicy: 'return_policy', footerNote: 'footer_note',
       loyaltyEarnPct: 'loyalty_earn_pct', loyaltyRedeemValue: 'loyalty_redeem_value',
       maxCashierDiscountPct: 'max_cashier_discount_pct', lowStockDefault: 'low_stock_default', slabs: 'slabs',
+      receiptShowTax: 'receipt_show_tax', receiptShowHsn: 'receipt_show_hsn',
+      receiptShowSavings: 'receipt_show_savings', receiptShowLoyalty: 'receipt_show_loyalty',
     }, 'id = :id', { id: c.storeId }, { slabs: (v) => JSON.stringify(v) })
     if (u) await this.db.query(u.sql.replace(' WHERE', ', updated_at = now() WHERE'), u.params)
     return this.show(c)

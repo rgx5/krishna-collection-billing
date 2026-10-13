@@ -110,6 +110,18 @@ describe('super admin and device health', () => {
     expect(d[0].flags).toEqual(expect.arrayContaining(['rejected_changes', 'stuck_queue', 'cloud_backup_failing', 'local_backup_failing']))
   })
 
+  it('bill options default to a clean receipt, can be changed by the owner, and reach every device through the snapshot', async () => {
+    const before = await http().get(api('/store')).set(auth(ownerA)).expect(200)
+    expect(before.body).toMatchObject({ receiptShowTax: false, receiptShowHsn: false, receiptShowSavings: true, receiptShowLoyalty: true })
+    const put = await http().put(api('/store')).set(auth(ownerA)).send({ receiptShowTax: true, receiptShowSavings: false }).expect(200)
+    expect(put.body).toMatchObject({ receiptShowTax: true, receiptShowHsn: false, receiptShowSavings: false, receiptShowLoyalty: true })
+    const snap = await http().get(api('/sync/snapshot')).set(auth(ownerA)).expect(200)
+    expect(snap.body.store).toMatchObject({ receiptShowTax: true, receiptShowSavings: false })
+    // another store is unaffected
+    const b = (await http().post(api('/auth/web-login')).send({ email: 'bala@b.in', password: 'password-b-1' }).expect(201)).body.token
+    expect((await http().get(api('/store')).set(auth(b)).expect(200)).body.receiptShowTax).toBe(false)
+  })
+
   it('flags a store that has sales but no backup, and one whose backup is stale', async () => {
     const bill = (id: string, date: number) => db.query(
       `INSERT INTO bills (id, store_id, no, date, status, total, cashier_id) VALUES (:id, 'store_b', :id, :date, 'paid', 100, (SELECT id FROM users WHERE store_id = 'store_b' LIMIT 1))`, { id, date })

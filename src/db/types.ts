@@ -30,6 +30,11 @@ export interface StoreSettings {
   loyaltyRedeemValue: number // ₹ value of 1 point
   maxCashierDiscountPct: number
   lowStockDefault: number
+  /** What the printed bill shows (see lib/receiptOptions.ts). Missing on older records: tax/HSN default to hidden. */
+  receiptShowTax?: boolean
+  receiptShowHsn?: boolean
+  receiptShowSavings?: boolean
+  receiptShowLoyalty?: boolean
   /** Cloud backend, optional — leave blank and the app stays exactly as offline-only as it's always been. */
   syncApiUrl: string
   syncStoreId: string

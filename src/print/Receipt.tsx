@@ -1,6 +1,7 @@
 import { Barcode } from '../components/ui'
 import { amountInWords, inr, round2 } from '../lib/money'
 import { hsnSummary } from '../lib/gst'
+import { receiptOptions } from '../lib/receiptOptions'
 import type { Bill, Customer, StoreSettings, User } from '../db/types'
 
 const dt = (ms: number) =>
@@ -17,6 +18,7 @@ export function Receipt({ bill, settings, customer, cashier }: {
     hsn: i.hsn, taxable: i.taxable, cgst: i.cgst, sgst: i.sgst, taxRate: i.taxRate, qty: i.qty,
   })))
   const savings = round2(bill.itemDiscount + bill.billDiscount)
+  const opt = receiptOptions(settings)
 
   return (
     <div className={`receipt ${settings.receiptWidth === '58mm' ? 'w58' : 'w80'}`}>
@@ -69,9 +71,11 @@ export function Receipt({ bill, settings, customer, cashier }: {
           <tr><td>Items / Qty</td><td className="r">{bill.items.length} / {bill.items.reduce((s, i) => s + i.qty, 0)}</td></tr>
           <tr><td>Gross (MRP)</td><td className="r">{inr(bill.grossMrp)}</td></tr>
           {savings > 0 && <tr><td>Discount</td><td className="r">- {inr(savings)}</td></tr>}
-          <tr><td>Taxable Value</td><td className="r">{inr(bill.taxableTotal)}</td></tr>
-          <tr><td>CGST</td><td className="r">{inr(bill.cgstTotal)}</td></tr>
-          <tr><td>SGST</td><td className="r">{inr(bill.sgstTotal)}</td></tr>
+          {opt.showTax && <>
+            <tr><td>Taxable Value</td><td className="r">{inr(bill.taxableTotal)}</td></tr>
+            <tr><td>CGST</td><td className="r">{inr(bill.cgstTotal)}</td></tr>
+            <tr><td>SGST</td><td className="r">{inr(bill.sgstTotal)}</td></tr>
+          </>}
           {bill.roundOff !== 0 && <tr><td>Round Off</td><td className="r">{inr(bill.roundOff)}</td></tr>}
         </tbody>
       </table>
@@ -85,6 +89,7 @@ export function Receipt({ bill, settings, customer, cashier }: {
         </tbody>
       </table>
       <div style={{ fontSize: 10 }}>{amountInWords(Math.abs(bill.total))}</div>
+      {!opt.showTax && <div style={{ fontSize: 9.5 }}>Inclusive of all taxes</div>}
       <hr />
       <table>
         <tbody>
@@ -94,17 +99,18 @@ export function Receipt({ bill, settings, customer, cashier }: {
           {bill.changeDue > 0 && <tr><td><strong>Change</strong></td><td className="r"><strong>{inr(bill.changeDue)}</strong></td></tr>}
         </tbody>
       </table>
-      {savings > 0 && !isReturn && (
+      {opt.showSavings && savings > 0 && !isReturn && (
         <>
           <hr />
           <div className="c"><strong>You saved {inr(savings)} on this bill!</strong></div>
         </>
       )}
-      {customer && (bill.loyaltyEarned > 0 || customer.loyaltyPoints > 0) && (
+      {opt.showLoyalty && customer && (bill.loyaltyEarned > 0 || customer.loyaltyPoints > 0) && (
         <div className="c" style={{ fontSize: 10 }}>
           Loyalty: +{bill.loyaltyEarned} pts earned
         </div>
       )}
+      {opt.showHsn && <>
       <hr />
       <div style={{ fontSize: 9.5 }}>
         <strong>HSN Summary</strong>
@@ -122,6 +128,7 @@ export function Receipt({ bill, settings, customer, cashier }: {
           </tbody>
         </table>
       </div>
+      </>}
       <hr />
       <div className="c" style={{ fontSize: 9.5 }}>{settings.returnPolicy}</div>
       <div className="c" style={{ margin: '6px 0' }}>

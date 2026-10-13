@@ -1,6 +1,7 @@
 import type { Bill, Customer, StoreSettings, User } from '../db/types'
 import { round2, amountInWords } from './money'
 import { hsnSummary } from './gst'
+import { receiptOptions } from './receiptOptions'
 
 const ESC = 0x1b
 const GS = 0x1d
@@ -77,6 +78,7 @@ export function buildReceiptEscPos(bill: Bill, settings: StoreSettings, customer
   const isReturn = bill.status === 'returned' && !!bill.refundOfBillId
   const hsn = hsnSummary(bill.items.map((i) => ({ hsn: i.hsn, taxable: i.taxable, cgst: i.cgst, sgst: i.sgst, taxRate: i.taxRate, qty: i.qty })))
   const savings = round2(bill.itemDiscount + bill.billDiscount)
+  const opt = receiptOptions(settings)
 
   const p = new EscPos().init()
 
@@ -110,32 +112,37 @@ export function buildReceiptEscPos(bill: Bill, settings: StoreSettings, customer
   p.row('Items / Qty', `${bill.items.length} / ${bill.items.reduce((s, i) => s + i.qty, 0)}`, width)
   p.row('Gross (MRP)', money(bill.grossMrp), width)
   if (savings > 0) p.row('Discount', '-' + money(savings), width)
-  p.row('Taxable Value', money(bill.taxableTotal), width)
-  p.row('CGST', money(bill.cgstTotal), width)
-  p.row('SGST', money(bill.sgstTotal), width)
+  if (opt.showTax) {
+    p.row('Taxable Value', money(bill.taxableTotal), width)
+    p.row('CGST', money(bill.cgstTotal), width)
+    p.row('SGST', money(bill.sgstTotal), width)
+  }
   if (bill.roundOff !== 0) p.row('Round Off', money(bill.roundOff), width)
   p.hr(width)
 
   p.bold(true).size(1).row(isReturn ? 'REFUND' : 'TOTAL', money(Math.abs(bill.total)), Math.floor(width * 0.7)).size(0).bold(false)
   p.line(amountInWords(Math.abs(bill.total)))
+  if (!opt.showTax) p.line('Inclusive of all taxes')
   p.hr(width)
 
   for (const pay of bill.payments) p.row(MODE_LABEL[pay.mode] ?? pay.mode, money(Math.abs(pay.amount)), width)
   if (bill.changeDue > 0) p.bold(true).row('Change', money(bill.changeDue), width).bold(false)
 
-  if (savings > 0 && !isReturn) {
+  if (opt.showSavings && savings > 0 && !isReturn) {
     p.hr(width)
     p.align('center').bold(true).line(`You saved ${money(savings)} on this bill!`).bold(false).align('left')
   }
-  if (customer && (bill.loyaltyEarned > 0 || customer.loyaltyPoints > 0)) {
+  if (opt.showLoyalty && customer && (bill.loyaltyEarned > 0 || customer.loyaltyPoints > 0)) {
     p.line(`Loyalty: +${bill.loyaltyEarned} pts earned`)
   }
   p.hr(width)
 
-  p.bold(true).line('HSN Summary').bold(false)
-  p.row('HSN', 'Rate   Taxable    Tax', width)
-  for (const h of hsn) p.row(h.hsn, `${h.rate}%  ${h.taxable.toFixed(2)}  ${(h.cgst + h.sgst).toFixed(2)}`, width)
-  p.hr(width)
+  if (opt.showHsn) {
+    p.bold(true).line('HSN Summary').bold(false)
+    p.row('HSN', 'Rate   Taxable    Tax', width)
+    for (const h of hsn) p.row(h.hsn, `${h.rate}%  ${h.taxable.toFixed(2)}  ${(h.cgst + h.sgst).toFixed(2)}`, width)
+    p.hr(width)
+  }
 
   if (settings.returnPolicy) p.align('center').line(settings.returnPolicy)
   p.feed(1).align('center').barcode(bill.no).feed(1)
