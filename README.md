@@ -74,7 +74,7 @@ changed but never shown). How the data is protected is described in [DATA-SAFETY
 
 ### Counter shortcuts
 
-`F1` billing · `F2` jump to the scan box · `F3` attach customer · `F4` payment · `F9` dashboard · `F11` full screen on/off (desktop app, which opens full screen) · `Esc` close
+`F1` billing · `F2` jump to the scan box · `F3` attach customer · `F4` payment · `F9` dashboard · `F11` full screen on/off (desktop app; it opens maximized with the normal minimize / maximize / close buttons) · `Esc` close
 
 ---
 

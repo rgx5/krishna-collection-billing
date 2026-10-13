@@ -27,7 +27,7 @@ export class AuthService {
    * still allowed in, so disabling a user takes effect at the next refresh.
    */
   async refresh(claims: { sub: string; storeId: string }) {
-    const user = await this.db.one('SELECT id, role, active, store_id, is_super_admin FROM users WHERE id = :id AND store_id = :s', { id: claims.sub, s: claims.storeId })
+    const user = await this.db.one('SELECT * FROM users WHERE id = :id AND store_id = :s', { id: claims.sub, s: claims.storeId })
     if (!user || !user.active) throw new UnauthorizedException('This account is no longer active')
     const store = await this.db.one('SELECT plan FROM stores WHERE id = :id', { id: user.store_id })
     if (!store || store.plan === 'suspended') throw new HttpException('This store account is suspended — contact support', 403)
