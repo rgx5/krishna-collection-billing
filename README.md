@@ -22,6 +22,7 @@ npm run build && npm run preview   # production build
 
 ### As a desktop app
 
+
 The same app also runs as a real native Windows/Mac/Linux window via
 [Tauri](https://tauri.app) — same React UI, same local IndexedDB storage, a
 native File menu (New Bill, Backup Data…), native save/open dialogs for
