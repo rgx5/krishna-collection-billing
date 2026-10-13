@@ -1218,6 +1218,12 @@ table.tbl th { font-weight: 700; }
 .label-cell .lbl-skuline { text-align: center; line-height: 1.15; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .label-cell .lbl-sku { font-family: var(--font); font-weight: 400; font-size: inherit !important; margin-left: auto; }
 
+/* ---- Garment label v4: all text bold, sizes come from LabelFace (the barcode itself is unchanged) ---- */
+.label-cell .lbl-store, .label-cell .lbl-line, .label-cell .lbl-name, .label-cell .lbl-variant,
+.label-cell .lbl-foot, .label-cell .lbl-mrp, .label-cell .lbl-price, .label-cell .lbl-skuline, .label-cell .lbl-sku { font-weight: 700; }
+.label-cell .lbl-store { letter-spacing: 0; line-height: 1.14; }
+.label-cell .lbl-line, .label-cell .lbl-foot, .label-cell .lbl-skuline { line-height: 1.14; }
+
 /* Expenses */
 .exp-row.sel { background: var(--brand-50); box-shadow: inset 3px 0 0 var(--brand); }
 .exp-row .exp-act { opacity: 0; transition: opacity .1s; }

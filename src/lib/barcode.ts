@@ -29,7 +29,7 @@ export function detectFormat(code: string): 'EAN13' | 'CODE128' {
 }
 
 export function renderBarcode(el: SVGSVGElement | HTMLCanvasElement, value: string, opts: {
-  height?: number; width?: number; fontSize?: number; displayValue?: boolean; margin?: number
+  height?: number; width?: number; fontSize?: number; displayValue?: boolean; margin?: number; bold?: boolean
 } = {}) {
   try {
     JsBarcode(el, value, {
@@ -40,6 +40,7 @@ export function renderBarcode(el: SVGSVGElement | HTMLCanvasElement, value: stri
       displayValue: opts.displayValue ?? true,
       margin: opts.margin ?? 2,
       textMargin: 1,
+      fontOptions: opts.bold ? 'bold' : '',
       background: '#ffffff',
       lineColor: '#000000',
     })
@@ -49,7 +50,7 @@ export function renderBarcode(el: SVGSVGElement | HTMLCanvasElement, value: stri
   }
 }
 
-type BarcodeOpts = { height?: number; width?: number; fontSize?: number; displayValue?: boolean; margin?: number }
+type BarcodeOpts = { height?: number; width?: number; fontSize?: number; displayValue?: boolean; margin?: number; bold?: boolean }
 
 const markupCache = new Map<string, string>()
 
