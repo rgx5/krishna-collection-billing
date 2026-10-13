@@ -27,11 +27,11 @@ export class AuthService {
    * still allowed in, so disabling a user takes effect at the next refresh.
    */
   async refresh(claims: { sub: string; storeId: string }) {
-    const user = await this.db.one('SELECT id, role, active, store_id FROM users WHERE id = :id AND store_id = :s', { id: claims.sub, s: claims.storeId })
+    const user = await this.db.one('SELECT id, role, active, store_id, is_super_admin FROM users WHERE id = :id AND store_id = :s', { id: claims.sub, s: claims.storeId })
     if (!user || !user.active) throw new UnauthorizedException('This account is no longer active')
     const store = await this.db.one('SELECT plan FROM stores WHERE id = :id', { id: user.store_id })
     if (!store || store.plan === 'suspended') throw new HttpException('This store account is suspended — contact support', 403)
-    return { token: await this.jwt.signAsync({ sub: user.id, store_id: user.store_id, role: user.role }) }
+    return { token: await this.jwt.signAsync({ sub: user.id, store_id: user.store_id, role: user.role, ...(user.is_super_admin ? { sa: true } : {}) }) }
   }
 
   async loginWithPassword(email: string, password: string) {
@@ -59,10 +59,10 @@ export class AuthService {
     const store = await this.db.one('SELECT id, name, plan FROM stores WHERE id = :id', { id: user.store_id })
     if (!store || store.plan === 'suspended') throw new HttpException('This store account is suspended — contact support', 403)
 
-    const token = await this.jwt.signAsync({ sub: user.id, store_id: user.store_id, role: user.role })
+    const token = await this.jwt.signAsync({ sub: user.id, store_id: user.store_id, role: user.role, ...(user.is_super_admin ? { sa: true } : {}) })
     return {
       token,
-      user: { id: user.id, name: user.name, role: user.role, storeId: user.store_id },
+      user: { id: user.id, name: user.name, role: user.role, storeId: user.store_id, superAdmin: !!user.is_super_admin },
       store: { id: store.id, name: store.name },
     }
   }

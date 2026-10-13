@@ -1,12 +1,17 @@
 import { db } from '../db'
 import type { Bill } from '../db/types'
 import { round2 } from './money'
+import { billFigures } from './billFigures'
+
+/** Expense category used for GST paid to the government — a liability settlement, kept out of profit. */
+export const GST_PAYMENT_CATEGORY = 'GST / Taxes'
 import { DAY, fmtDayShort, startOfDay } from './dates'
 
 export type DashRange = 'today' | '7d' | '30d'
 export const RANGE_DAYS: Record<DashRange, number> = { today: 1, '7d': 7, '30d': 30 }
 
-export interface PeriodTotals { sales: number; bills: number; pieces: number; cost: number; expenses: number; profit: number }
+/** `sales` is what customers paid (GST included); `net` is sales excluding GST, which is what profit is worked out on. */
+export interface PeriodTotals { sales: number; net: number; bills: number; pieces: number; cost: number; expenses: number; profit: number }
 
 export interface DashboardData {
   cur: PeriodTotals
@@ -58,7 +63,7 @@ export async function loadDashboard(range: DashRange): Promise<DashboardData> {
   const costOf = new Map<string, number>()
   for (const v of variants) costOf.set(v.id, v.cost)
 
-  const blank = (): PeriodTotals => ({ sales: 0, bills: 0, pieces: 0, cost: 0, expenses: 0, profit: 0 })
+  const blank = (): PeriodTotals => ({ sales: 0, net: 0, bills: 0, pieces: 0, cost: 0, expenses: 0, profit: 0 })
   const cur = blank()
   const prev = blank()
   const modes = new Map<string, number>()
@@ -73,16 +78,12 @@ export async function loadDashboard(range: DashRange): Promise<DashboardData> {
     const inCur = b.date >= curStart && b.date <= now
     const inPrev = b.date >= prevStart && b.date <= prevEnd
     const t: PeriodTotals | null = inCur ? cur : inPrev ? prev : null
-    let qty = 0
-    let cost = 0
-    for (const it of b.items) {
-      qty += it.qty
-      cost += (costOf.get(it.variantId) ?? 0) * it.qty
-    }
+    const f = billFigures(b, (vid) => costOf.get(vid) ?? 0)
     if (t) {
       t.sales += b.total
-      t.pieces += qty
-      t.cost += cost
+      t.net += f.net
+      t.pieces += f.pieces
+      t.cost += f.cost
       if (b.total > 0) t.bills++
     }
     if (inCur) {
@@ -104,12 +105,14 @@ export async function loadDashboard(range: DashRange): Promise<DashboardData> {
   }
 
   for (const e of expenses) {
+    // Paying GST to the government settles a liability — it is not a cost of running the shop.
+    if (e.category === GST_PAYMENT_CATEGORY) continue
     if (e.date >= curStart && e.date <= now) cur.expenses += e.amount
     else if (e.date >= prevStart && e.date <= prevEnd) prev.expenses += e.amount
   }
   for (const t of [cur, prev]) {
-    t.sales = round2(t.sales); t.cost = round2(t.cost); t.expenses = round2(t.expenses)
-    t.profit = round2(t.sales - t.cost - t.expenses)
+    t.sales = round2(t.sales); t.net = round2(t.net); t.cost = round2(t.cost); t.expenses = round2(t.expenses)
+    t.profit = round2(t.net - t.cost - t.expenses)
   }
 
   // Stock health from variants alone; product names are fetched only for the

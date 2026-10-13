@@ -11,6 +11,7 @@ import { useDebounced } from '../lib/useDebounced'
 import { Field, Modal, Segmented, Confirm, Empty } from '../components/ui'
 import { SyncBadge } from '../components/SyncBadge'
 import { DataSafety } from '../components/DataSafety'
+import { Diagnostics } from '../components/Diagnostics'
 import { restoreBackup, type BackupPayload } from '../lib/backup'
 import { decryptWithPassphraseOrKey, encryptText, isEncryptedBackup } from '../lib/crypto'
 import { Download, HistoryIcon, Plus, Search, TrashIcon, Upload } from '../components/icons'
@@ -19,7 +20,7 @@ import { isDesktop, listSerialPorts, openBackup, printRaw, saveBackup, type Prin
 import { buildDrawerKickEscPos, buildTestPrintEscPos } from '../lib/escpos'
 import type { AuditLog, Role, StoreSettings, User } from '../db/types'
 
-type Tab = 'store' | 'tax' | 'receipt' | 'users' | 'data'
+type Tab = 'store' | 'tax' | 'receipt' | 'users' | 'data' | 'diagnostics'
 const GSTIN_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/
 const NO_LIMIT = Number.MAX_SAFE_INTEGER
 
@@ -30,7 +31,7 @@ const ROLE_HELP: Record<Role, string> = {
 }
 
 export default function Settings() {
-  const { settings, toast, user } = useApp()
+  const { settings, toast, user, sync } = useApp()
   const [tab, setTab] = useState<Tab>('store')
   const [f, setF] = useState<StoreSettings | null>(settings)
   const [base, setBase] = useState<StoreSettings | null>(settings)
@@ -114,6 +115,8 @@ export default function Settings() {
     { value: 'receipt', label: 'Receipt & labels' },
     { value: 'users', label: 'Staff' },
     { value: 'data', label: 'Data' },
+    // Developer / support account only — shop owners and staff never see this tab.
+    ...(sync.superAdmin ? [{ value: 'diagnostics' as Tab, label: 'Diagnostics' }] : []),
   ]
 
   return (
@@ -336,6 +339,7 @@ export default function Settings() {
 
           {tab === 'users' && <StaffTab users={users} logs={logs} currentUserId={user?.id} />}
           {tab === 'data' && <DataTab f={f} set={set} />}
+          {tab === 'diagnostics' && sync.superAdmin && <Diagnostics />}
         </div>
       </div>
     </div>

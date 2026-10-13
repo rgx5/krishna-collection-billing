@@ -8,6 +8,7 @@ import { initialsOf } from './components/ui'
 import { SyncBadge } from './components/SyncBadge'
 import { SafetyBanner } from './components/SafetyBanner'
 import { startBackupScheduler } from './lib/backup'
+import { startHealthReporting } from './lib/health'
 import {
   BillingIcon, BillsIcon, CustomersIcon, DashboardIcon, ExpensesIcon, InventoryIcon,
   LabelsIcon, Lock, Menu, MoreIcon, Power, PurchasesIcon, ReportsIcon, SettingsIcon, StockIcon,
@@ -293,7 +294,7 @@ export default function App() {
   useEffect(() => { if (ready) showWindow() }, [ready])
 
   // Once someone is signed in, back up on the chosen schedule for as long as the app stays open.
-  useEffect(() => { if (ready && user) startBackupScheduler() }, [ready, user])
+  useEffect(() => { if (ready && user) { startBackupScheduler(); startHealthReporting() } }, [ready, user])
 
   const pageTitle = useMemo(() => {
     if (location.pathname === '/settings') return 'Settings'

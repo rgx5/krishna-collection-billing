@@ -33,8 +33,9 @@ export function SafetyBanner() {
     tone = sync.online ? 'danger' : 'warn'
     text = <><b>{sync.pending} change{sync.pending === 1 ? ' hasn\'t' : 's haven\'t'} reached the cloud for {ago(sync.oldestPendingAt, now).replace(' ago', '')}.</b> {sync.online ? (sync.lastError ?? 'Trying again.') : 'No internet — they will upload as soon as you are back online.'}</>
     action = sync.online ? <button className="btn btn-sm" onClick={() => void syncNow()}>Sync now</button> : null
-  } else if (sync.rejected > 0) {
-    text = <><b>{sync.rejected} change{sync.rejected === 1 ? ' was' : 's were'} refused by the cloud and set aside.</b> {sync.rejected === 1 ? 'It is' : 'They are'} still on this device and in the full backups, and billing carries on normally.</>
+  } else if (sync.rejected > 0 && sync.superAdmin) {
+    // Shop staff cannot act on this and it never affects billing, so only the support account is told.
+    text = <><b>{sync.rejected} change{sync.rejected === 1 ? ' was' : 's were'} refused by the cloud and set aside.</b> Details are under Settings → Diagnostics. {sync.rejected === 1 ? 'It is' : 'They are'} still on this device and in the full backups.</>
     action = <button className="btn btn-sm" onClick={() => void retryRejected()}>Retry</button>
   } else if (b.cloud.error && !b.cloud.blocked) {
     text = <><b>Cloud backup didn't complete.</b> {b.cloud.error}</>

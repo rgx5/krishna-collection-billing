@@ -89,6 +89,8 @@ function setState(patch: Patch) {
 }
 export function onBackupStateChange(l: (s: BackupState) => void): () => void { listeners.add(l); l(state); return () => listeners.delete(l) }
 export const getBackupState = () => state
+/** This installation's short name (`Desktop-ab12`), kept in local storage — used to tell devices apart in cloud backups and health reports. */
+export const getDeviceName = () => prefs.device
 
 const everyMs = () => prefs.intervalMin * 60_000
 function schedule() {

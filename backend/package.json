@@ -9,10 +9,12 @@
     "start:dev": "nest start --watch",
     "migrate": "ts-node src/cli/migrate.ts",
     "provision": "ts-node src/cli/provision.ts",
+    "super-admin": "ts-node src/cli/super-admin.ts",
     "test": "jest --runInBand",
     "test:e2e": "jest --runInBand --config test/jest-e2e.json",
     "migrate:prod": "node dist/cli/migrate.js",
-    "provision:prod": "node dist/cli/provision.js"
+    "provision:prod": "node dist/cli/provision.js",
+    "super-admin:prod": "node dist/cli/super-admin.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

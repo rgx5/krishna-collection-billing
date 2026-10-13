@@ -6,10 +6,13 @@ export interface TaxSlab {
   rate: number
 }
 
-/** Default Indian apparel slabs: 5% up to ₹1000/piece, 12% above. Editable in Settings. */
+/**
+ * Default Indian apparel slabs since 22 September 2025: 5% up to ₹2,500 per piece, 18% above (the old 12% band was
+ * removed). Editable in Settings — a store's own slabs always win, so confirm them with the shop's accountant.
+ */
 export const DEFAULT_SLABS: TaxSlab[] = [
-  { upto: 1000, rate: 5 },
-  { upto: Number.MAX_SAFE_INTEGER, rate: 12 },
+  { upto: 2500, rate: 5 },
+  { upto: Number.MAX_SAFE_INTEGER, rate: 18 },
 ]
 
 export function rateFor(perPieceTaxable: number, slabs: TaxSlab[]): number {

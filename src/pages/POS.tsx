@@ -143,7 +143,7 @@ export default function POS() {
       }
       return [{
         variantId: v.id, productId: v.productId, sku: v.sku, barcode: v.barcode, name: v.productName,
-        size: v.size, color: v.color, hsn: v.hsn, mrp: v.mrp, price: v.price,
+        size: v.size, color: v.color, hsn: v.hsn, mrp: v.mrp, price: v.price, cost: v.cost,
         qty, stock: v.stock, discountType: 'pct', discountValue: 0,
       }, ...prev]
     })
@@ -320,7 +320,7 @@ export default function POS() {
       const v = variants.find((x) => x.id === it.variantId)
       restored.push({
         variantId: it.variantId, productId: v?.productId, sku: it.sku, barcode: it.barcode, name: it.name,
-        size: it.size, color: it.color, hsn: it.hsn, mrp: it.mrp, price: it.price,
+        size: it.size, color: it.color, hsn: it.hsn, mrp: it.mrp, price: it.price, cost: v?.cost ?? it.cost,
         qty: it.qty, stock: v?.stock ?? it.qty, discountType: it.discountType,
         discountValue: it.discountValue,
       })

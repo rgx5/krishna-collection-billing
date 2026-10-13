@@ -153,6 +153,8 @@ export interface BillItem {
   lineTotal: number
   returnedQty: number
   priceOverridden?: boolean
+  /** Purchase cost of one piece at the moment of sale, so profit reports do not move when the cost is edited later. */
+  cost?: number
 }
 
 export type PayMode = 'cash' | 'card' | 'upi' | 'credit'

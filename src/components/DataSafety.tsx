@@ -63,7 +63,7 @@ export function DataSafety() {
     : !sync.authenticated ? { level: 'bad', text: 'Paused — sign in again to resume' }
     : !sync.online ? { level: 'warn', text: `Offline — ${sync.pending} change${sync.pending === 1 ? '' : 's'} waiting` }
     : sync.pending > 0 ? { level: pendingAge > 10 * 60_000 ? 'warn' : 'ok', text: `${sync.pending} change${sync.pending === 1 ? '' : 's'} uploading${sync.oldestPendingAt ? ` (oldest ${ago(sync.oldestPendingAt, now)})` : ''}` }
-    : sync.rejected > 0 ? { level: 'warn', text: `${sync.rejected} change${sync.rejected === 1 ? '' : 's'} refused by the cloud and set aside — still in the full backups` }
+    : sync.rejected > 0 && sync.superAdmin ? { level: 'warn', text: `${sync.rejected} change${sync.rejected === 1 ? '' : 's'} refused by the cloud and set aside — still in the full backups` }
     : { level: 'ok', text: sync.lastSyncedAt ? `Up to date · last sent ${ago(sync.lastSyncedAt, now)}` : 'Up to date' }
 
   const cloud: { level: Level; text: string } =
@@ -116,7 +116,7 @@ export function DataSafety() {
   const rows: Array<{ label: string; hint: string; r: { level: Level; text: string }; action?: React.ReactNode }> = [
     { label: 'Live sync to the cloud', hint: 'Every sale, stock change and edit is sent as it happens', r: live,
       action: linked && sync.authenticated
-        ? <button className="btn btn-sm" onClick={() => void (sync.rejected > 0 && !sync.pending ? retryRejected() : syncNow())}><Refresh size={14} /> {sync.rejected > 0 && !sync.pending ? 'Retry' : 'Sync now'}</button>
+        ? <button className="btn btn-sm" onClick={() => void (sync.superAdmin && sync.rejected > 0 && !sync.pending ? retryRejected() : syncNow())}><Refresh size={14} /> {sync.superAdmin && sync.rejected > 0 && !sync.pending ? 'Retry' : 'Sync now'}</button>
         : undefined },
     { label: 'Full cloud backup', hint: 'A complete copy of everything, kept in versions you can restore', r: cloud },
     { label: 'Backup on this computer', hint: desktop ? (b.local.folder || 'Documents\\Krishna Collection Backups') : 'Saves to a folder on this PC', r: disk },

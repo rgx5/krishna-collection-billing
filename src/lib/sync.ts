@@ -15,6 +15,17 @@ function clearSession() {
   try { localStorage.removeItem(SESSION_STORE) } catch { /* private mode */ }
 }
 
+/** Reads a claim out of a token that this app already holds (the server signed it; nothing here trusts it for access). */
+function tokenClaim(t: string | null, claim: string): unknown {
+  if (!t) return undefined
+  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))[claim] } catch { return undefined }
+}
+
+function setToken(t: string | null) {
+  token = t
+  setState({ superAdmin: tokenClaim(t, 'sa') === true })
+}
+
 function tokenExpired(t: string): boolean {
   try {
     const exp = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp as number
@@ -40,9 +51,11 @@ export interface SyncState {
   oldestPendingAt: number | null
   /** Changes the server refused for good (bad data) and that were set aside so the rest could continue. */
   rejected: number
+  /** The signed-in cloud account is the developer / support account (a claim in the token, set only in the database). */
+  superAdmin: boolean
 }
 
-let state: SyncState = { online: navigator.onLine, authenticated: false, pending: 0, lastError: null, lastSyncedAt: null, oldestPendingAt: null, rejected: 0 }
+let state: SyncState = { online: navigator.onLine, authenticated: false, pending: 0, lastError: null, lastSyncedAt: null, oldestPendingAt: null, rejected: 0, superAdmin: false }
 const listeners = new Set<SyncListener>()
 
 function setState(patch: Partial<SyncState>) {
@@ -64,7 +77,7 @@ export function getSyncState(): SyncState {
 export async function configureSync(apiUrl: string, storeId: string, userId: string, pin: string) {
   if (!apiUrl || !storeId) {
     creds = null
-    token = null
+    setToken(null)
     setState({ authenticated: false })
     return
   }
@@ -76,7 +89,7 @@ export async function configureSync(apiUrl: string, storeId: string, userId: str
 /** Signed in through the web login: the server already issued a token, there is no PIN to re-authenticate with later. */
 export async function configureSyncWithToken(apiUrl: string, storeId: string, newToken: string) {
   creds = { apiUrl: apiUrl.replace(/\/$/, ''), storeId, userId: '', pin: '' }
-  token = newToken
+  setToken(newToken)
   saveSession()
   setState({ authenticated: true, lastError: null })
   await pushCategories()
@@ -93,7 +106,7 @@ export function restoreSync(apiUrl: string, storeId: string) {
     const saved = JSON.parse(localStorage.getItem(SESSION_STORE) ?? 'null') as { token: string; apiUrl: string; storeId: string } | null
     if (!saved || saved.storeId !== storeId || saved.apiUrl !== apiUrl.replace(/\/$/, '') || tokenExpired(saved.token)) return
     creds = { apiUrl: saved.apiUrl, storeId, userId: '', pin: '' }
-    token = saved.token
+    setToken(saved.token)
     setState({ authenticated: true, lastError: null })
     void flush()
   } catch { /* corrupt entry — ignore, next login replaces it */ }
@@ -127,7 +140,7 @@ async function pushCategories() {
 
 export function stopSync() {
   creds = null
-  token = null
+  setToken(null)
   clearSession()
   if (timer) clearInterval(timer)
   timer = null
@@ -151,7 +164,7 @@ async function authenticate(): Promise<boolean> {
       return false
     }
     const data = await res.json()
-    token = data.token
+    setToken(data.token)
     saveSession()
     setState({ authenticated: true, lastError: null })
     return true
@@ -182,7 +195,7 @@ async function refreshTokenIfNeeded(): Promise<void> {
     const res = await fetch(`${creds.apiUrl}/auth/refresh`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return
     const data = await res.json() as { token?: string }
-    if (data.token) { token = data.token; saveSession() }
+    if (data.token) { setToken(data.token); saveSession() }
   } catch { /* offline right now — try again next tick */ }
 }
 

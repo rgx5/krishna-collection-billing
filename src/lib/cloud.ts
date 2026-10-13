@@ -4,8 +4,22 @@ import type {
   Bill, Category, Customer, DaySession, Expense, Product, Purchase, StockMove, StoreSettings, Supplier, User, Variant,
 } from '../db/types'
 
-/** Set at build time (VITE_API_URL) so a client's installer / hosted site already knows its backend. */
-export const DEFAULT_API_URL: string = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+/** Where the installed desktop app talks to when the build was not given its own address. */
+const PRODUCTION_API_URL = 'https://krishna-collection-billing.vercel.app/api'
+
+/** True inside the packaged desktop app (its pages are served from tauri.localhost / tauri://localhost). */
+function insideDesktopApp(): boolean {
+  if (typeof window === 'undefined') return false
+  const { protocol, hostname } = window.location
+  return protocol === 'tauri:' || /(^|\.)tauri\.localhost$/.test(hostname) || !!(window as unknown as { isTauri?: boolean }).isTauri
+}
+
+/**
+ * The server the app signs in to — people are never asked for it. A build can set its own (VITE_API_URL, which is
+ * how the hosted site uses its own `/api`); otherwise the installed desktop app uses the production server.
+ * Left empty only in local development, where the sign-in screen asks.
+ */
+export const DEFAULT_API_URL: string = ((import.meta.env.VITE_API_URL ?? '') || (insideDesktopApp() ? PRODUCTION_API_URL : '')).replace(/\/$/, '')
 
 export interface WebLoginResult {
   token: string

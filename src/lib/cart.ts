@@ -19,6 +19,8 @@ export interface CartLine {
   discountType: DiscountType
   discountValue: number
   priceOverridden?: boolean
+  /** Purchase cost per piece, copied onto the bill line when it is sold. */
+  cost?: number
 }
 
 export interface CartTotals {
@@ -68,7 +70,11 @@ export function priceCart(
   // Distribute proportionally; the last line absorbs the rounding remainder.
   const shares = netBeforeBill.map((n) => (sumNet > 0 ? round2((billDiscount * n) / sumNet) : 0))
   const drift = round2(billDiscount - shares.reduce((s, v) => s + v, 0))
-  if (shares.length) shares[shares.length - 1] = round2(shares[shares.length - 1] + drift)
+  // The last line absorbs the rounding remainder, but never so much that it ends up below zero (a 100% discount).
+  if (shares.length) {
+    const last = shares.length - 1
+    shares[last] = Math.min(round2(shares[last] + drift), netBeforeBill[last])
+  }
 
   const items: BillItem[] = lines.map((l, i) => {
     const itemDisc = lineDiscount(l)
@@ -96,6 +102,7 @@ export function priceCart(
       lineTotal: priceIncludesTax ? net : t.gross,
       returnedQty: 0,
       priceOverridden: l.priceOverridden,
+      cost: l.cost,
     }
   })
 

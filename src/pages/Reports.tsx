@@ -3,6 +3,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { loadVariantViews, type VariantView } from '../db/ops'
 import { hsnSummary } from '../lib/gst'
+import { billFigures } from '../lib/billFigures'
+import { GST_PAYMENT_CATEGORY } from '../lib/dashboardData'
+import { id } from '../lib/id'
 import { inr, inrShort, round2 } from '../lib/money'
 import { DAY, fmtDate, fmtDayShort, rangeBounds, RANGE_OPTIONS, startOfDay, type RangeKey } from '../lib/dates'
 import { toCSV, downloadFile } from '../lib/csv'
@@ -38,10 +41,12 @@ export default function Reports() {
   const variants = useLiveQuery(() => loadVariantViews(), [], [] as VariantView[]) ?? []
   const costOf = useMemo(() => new Map(variants.map((v) => [v.id, v.cost])), [variants])
 
-  // One pass over the period's bills builds everything the tabs need.
+  // One pass over the period's bills builds everything the tabs need. Every figure comes from billFigures(), so a
+  // return (credit note) subtracts consistently from sales, tax, pieces, cost and discount.
   const agg = useMemo(() => {
     const sales = bills.filter((b) => b.status !== 'held')
-    let revenue = 0, qty = 0, discount = 0, cogs = 0, creditTotal = 0, positive = 0, credits = 0
+    const currentCost = (variantId: string) => costOf.get(variantId) ?? 0
+    let revenue = 0, net = 0, gst = 0, qty = 0, discount = 0, cogs = 0, creditTotal = 0, positive = 0, credits = 0, positiveTotal = 0
     const modes = new Map<string, number>()
     const items = new Map<string, { name: string; sku: string; variant: string; qty: number; revenue: number; cost: number }>()
     const staff = new Map<string, { bills: number; qty: number; revenue: number; discount: number }>()
@@ -54,30 +59,31 @@ export default function Reports() {
     const daily = Array.from({ length: nDays }, (_, i) => ({ start: chartStart + i * DAY, total: 0, bills: 0, qty: 0 }))
 
     for (const b of sales) {
-      const sign = b.total < 0 ? -1 : 1
-      let bq = 0, bc = 0
+      const f = billFigures(b, currentCost)
+      const isCredit = f.sign === -1
+      revenue += f.total; net += f.net; gst += f.gst; qty += f.pieces; discount += f.discount; cogs += f.cost
+      if (isCredit) { credits++; creditTotal += b.total } else { positive++; positiveTotal += b.total }
+
       for (const i of b.items) {
-        bq += i.qty
-        const c = (costOf.get(i.variantId) ?? 0) * i.qty
-        bc += c
         const it = items.get(i.variantId) ?? { name: i.name, sku: i.sku, variant: `${i.size}/${i.color}`, qty: 0, revenue: 0, cost: 0 }
-        it.qty += i.qty * sign; it.revenue += i.lineTotal * sign; it.cost += c * sign
+        it.qty += i.qty * f.sign
+        it.revenue += i.taxable * f.sign // sales value excluding GST, so margin is a real margin
+        it.cost += (i.cost ?? currentCost(i.variantId)) * i.qty * f.sign
         items.set(i.variantId, it)
-        lines.push({ hsn: i.hsn, taxable: i.taxable * sign, cgst: i.cgst * sign, sgst: i.sgst * sign, taxRate: i.taxRate, qty: i.qty * sign })
+        lines.push({ hsn: i.hsn, taxable: i.taxable * f.sign, cgst: i.cgst * f.sign, sgst: i.sgst * f.sign, taxRate: i.taxRate, qty: i.qty * f.sign })
       }
-      revenue += b.total
-      cogs += bc * sign
-      discount += b.itemDiscount + b.billDiscount
-      if (b.total > 0) { positive++; qty += bq } else { credits++; creditTotal += b.total }
       for (const p of b.payments) modes.set(p.mode, (modes.get(p.mode) ?? 0) + p.amount)
+
       const st = staff.get(b.cashierId) ?? { bills: 0, qty: 0, revenue: 0, discount: 0 }
-      st.revenue += b.total; st.qty += bq; st.discount += b.itemDiscount + b.billDiscount; if (b.total > 0) st.bills++
+      st.revenue += f.total; st.qty += f.pieces; st.discount += f.discount; if (!isCredit) st.bills++
       staff.set(b.cashierId, st)
+
       const idx = Math.floor((startOfDay(b.date) - chartStart) / DAY)
-      if (idx >= 0 && idx < nDays) { daily[idx].total += b.total; daily[idx].qty += bq * sign; if (b.total > 0) daily[idx].bills++ }
+      if (idx >= 0 && idx < nDays) { daily[idx].total += b.total; daily[idx].qty += f.pieces; if (!isCredit) daily[idx].bills++ }
     }
     return {
-      revenue: round2(revenue), qty, discount: round2(discount), cogs: round2(cogs), positive, credits, creditTotal: round2(creditTotal),
+      revenue: round2(revenue), net: round2(net), gst: round2(gst), qty, discount: round2(discount), cogs: round2(cogs),
+      positive, credits, creditTotal: round2(creditTotal), positiveTotal: round2(positiveTotal),
       modes: [...modes.entries()].map(([m, v]) => [m, round2(v)] as [string, number]).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]),
       items: [...items.values()].map((r) => ({ ...r, revenue: round2(r.revenue), cost: round2(r.cost) })).sort((a, b) => b.qty - a.qty),
       staff, lines,
@@ -85,14 +91,17 @@ export default function Reports() {
     }
   }, [bills, costOf, from, to])
 
-  const periodExpenses = round2(expenses.reduce((s, e) => s + e.amount, 0))
-  const grossProfit = round2(agg.revenue - agg.cogs)
+  // GST paid to the government settles what the shop collected for it — it is not a running cost, so it stays out of profit.
+  const periodExpenses = round2(expenses.filter((e) => e.category !== GST_PAYMENT_CATEGORY).reduce((s, e) => s + e.amount, 0))
+  const gstPaid = round2(expenses.filter((e) => e.category === GST_PAYMENT_CATEGORY).reduce((s, e) => s + e.amount, 0))
+  const grossProfit = round2(agg.net - agg.cogs)
   const netProfit = round2(grossProfit - periodExpenses)
   const gstRows = useMemo(() => hsnSummary(agg.lines), [agg.lines])
-  const staffRows = useMemo(() => users.map((u) => {
-    const s = agg.staff.get(u.id)
-    return { user: u, bills: s?.bills ?? 0, qty: s?.qty ?? 0, revenue: round2(s?.revenue ?? 0), discount: round2(s?.discount ?? 0) }
-  }).filter((r) => r.bills > 0 || r.revenue !== 0), [users, agg.staff])
+  // Includes people who have since been removed, so the staff rows always add up to the period's sales.
+  const staffRows = useMemo(() => [...agg.staff.entries()].map(([uid, s]) => ({
+    user: users.find((u) => u.id === uid) ?? ({ id: uid, name: 'Removed staff', role: 'cashier', pin: '', active: false } as User),
+    bills: s.bills, qty: s.qty, revenue: round2(s.revenue), discount: round2(s.discount),
+  })).filter((r) => r.bills > 0 || r.revenue !== 0).sort((a, b) => b.revenue - a.revenue), [users, agg.staff])
 
   const [itemQ, setItemQ] = useState('')
   const itemNeedle = useDebounced(itemQ.trim().toLowerCase(), 120)
@@ -119,17 +128,17 @@ export default function Reports() {
       title: 'Sales report',
       cols: [{ key: 'date', label: 'Date' }, { key: 'bills', label: 'Bills', num: true }, { key: 'pieces', label: 'Pieces', num: true }, { key: 'sales', label: 'Sales', money: true }],
       rows: agg.daily.filter((d) => d.bills > 0 || d.total !== 0).map((d) => ({ date: fmtDate(d.start), bills: d.bills, pieces: d.qty, sales: d.total })),
-      footer: `Net sales ${inr(agg.revenue)} across ${agg.positive} bills.`,
+      footer: `Net sales ${inr(agg.revenue)} (excluding GST ${inr(agg.net)}) across ${agg.positive} bills.`,
     }
     if (tab === 'gst') return {
       title: 'GST summary — HSN wise',
-      cols: [{ key: 'hsn', label: 'HSN' }, { key: 'rate', label: 'GST rate', num: true }, { key: 'qty', label: 'Qty', num: true }, { key: 'taxable', label: 'Taxable value', money: true }, { key: 'cgst', label: 'CGST', money: true }, { key: 'sgst', label: 'SGST', money: true }, { key: 'tax', label: 'Total tax', money: true }],
-      rows: gstRows.map((r) => ({ hsn: r.hsn, rate: `${r.rate}%`, qty: r.qty, taxable: r.taxable, cgst: r.cgst, sgst: r.sgst, tax: round2(r.cgst + r.sgst) })),
+      cols: [{ key: 'hsn', label: 'HSN' }, { key: 'rate', label: 'GST rate', num: true }, { key: 'uqc', label: 'UQC' }, { key: 'qty', label: 'Qty', num: true }, { key: 'taxable', label: 'Taxable value', money: true }, { key: 'cgst', label: 'CGST', money: true }, { key: 'sgst', label: 'SGST', money: true }, { key: 'tax', label: 'Total tax', money: true }, { key: 'value', label: 'Total value', money: true }],
+      rows: gstRows.map((r) => ({ hsn: r.hsn, rate: `${r.rate}%`, uqc: 'NOS', qty: r.qty, taxable: r.taxable, cgst: r.cgst, sgst: r.sgst, tax: round2(r.cgst + r.sgst), value: round2(r.taxable + r.cgst + r.sgst) })),
       footer: settings?.gstin ? `GSTIN ${settings.gstin}` : undefined,
     }
     if (tab === 'items') return {
       title: 'Item performance',
-      cols: [{ key: 'item', label: 'Item' }, { key: 'sku', label: 'SKU' }, { key: 'variant', label: 'Variant' }, { key: 'pieces', label: 'Pieces', num: true }, { key: 'revenue', label: 'Revenue', money: true },
+      cols: [{ key: 'item', label: 'Item' }, { key: 'sku', label: 'SKU' }, { key: 'variant', label: 'Variant' }, { key: 'pieces', label: 'Pieces', num: true }, { key: 'revenue', label: 'Sales (excl. GST)', money: true },
         ...(can('viewProfit') ? [{ key: 'cost', label: 'Cost', money: true }, { key: 'margin', label: 'Margin', money: true }] : [])],
       rows: itemRows.map((r) => ({ item: r.name, sku: r.sku, variant: r.variant, pieces: r.qty, revenue: r.revenue, cost: r.cost, margin: round2(r.revenue - r.cost) })),
     }
@@ -142,7 +151,7 @@ export default function Reports() {
       title: 'Profit & loss',
       cols: [{ key: 'line', label: 'Particulars' }, { key: 'amount', label: 'Amount', money: true }],
       rows: [
-        { line: 'Sales (net of returns)', amount: agg.revenue }, { line: 'Less: cost of goods sold', amount: -agg.cogs },
+        { line: 'Sales excluding GST (net of returns)', amount: agg.net }, { line: 'Less: cost of goods sold', amount: -agg.cogs },
         { line: 'Gross profit', amount: grossProfit }, { line: 'Less: operating expenses', amount: -periodExpenses }, { line: 'Net profit', amount: netProfit },
       ],
     }
@@ -181,8 +190,8 @@ export default function Reports() {
           {tab === 'sales' && (
             <>
               <div className="stat-grid">
-                <Stat label="Net sales" value={inr(agg.revenue)} icon={<RupeeIcon />} tone="brand" foot={`${agg.positive} bills · ${agg.qty} pieces`} />
-                <Stat label="Average bill" value={inr(agg.positive ? round2(agg.revenue / agg.positive) : 0)} icon={<BillsIcon />} tone="ok" foot="per customer" />
+                <Stat label="Net sales" value={inr(agg.revenue)} icon={<RupeeIcon />} tone="brand" foot={`${agg.positive} bills · ${inr(agg.net)} excl. GST`} />
+                <Stat label="Average bill" value={inr(agg.positive ? round2(agg.positiveTotal / agg.positive) : 0)} icon={<BillsIcon />} tone="ok" foot={`${agg.qty} pieces, net of returns`} />
                 <Stat label="Discount given" value={inr(agg.discount)} icon={<PercentIcon />} tone="warn" foot={`${agg.revenue ? Math.round((agg.discount / (agg.revenue + agg.discount)) * 100) : 0}% of gross`} />
                 <Stat label="Returns" value={inr(Math.abs(agg.creditTotal))} icon={<RotateIcon />} tone="danger" foot={`${agg.credits} credit notes`} />
               </div>
@@ -274,16 +283,16 @@ export default function Reports() {
           {tab === 'profit' && can('viewProfit') && (
             <>
               <div className="stat-grid">
-                <Stat label="Revenue" value={inr(agg.revenue)} icon={<RupeeIcon />} tone="ok" />
+                <Stat label="Sales (excl. GST)" value={inr(agg.net)} icon={<RupeeIcon />} tone="ok" foot={`${inr(agg.gst)} GST collected on top`} />
                 <Stat label="Cost of goods sold" value={inr(agg.cogs)} icon={<BoxesIcon />} tone="warn" foot="At purchase cost" />
-                <Stat label="Gross profit" value={inr(grossProfit)} icon={<TrendUp />} tone="brand" foot={`${agg.revenue ? Math.round((grossProfit / agg.revenue) * 100) : 0}% margin`} />
+                <Stat label="Gross profit" value={inr(grossProfit)} icon={<TrendUp />} tone="brand" foot={`${agg.net ? Math.round((grossProfit / agg.net) * 100) : 0}% margin`} />
                 <Stat label="Net profit" value={inr(netProfit)} icon={<PercentIcon />} tone={netProfit >= 0 ? 'ok' : 'danger'} foot={`After ${inr(periodExpenses)} expenses`} />
               </div>
               <section className="card">
                 <div className="card-head"><h2>Profit &amp; loss</h2><span className="small muted">{periodLabel}</span></div>
                 <table className="tbl">
                   <tbody>
-                    <tr><td>Sales (net of returns)</td><td className="num bold">{inr(agg.revenue)}</td></tr>
+                    <tr><td>Sales excluding GST <span className="small muted">(net of returns)</span></td><td className="num bold">{inr(agg.net)}</td></tr>
                     <tr><td>Less: cost of goods sold</td><td className="num">− {inr(agg.cogs)}</td></tr>
                     <tr style={{ background: '#eaeef6' }}><td className="bold">Gross profit</td><td className="num bold">{inr(grossProfit)}</td></tr>
                     <tr><td>Less: operating expenses</td><td className="num">− {inr(periodExpenses)}</td></tr>
@@ -292,6 +301,8 @@ export default function Reports() {
                       <td className="num bold" style={{ color: netProfit >= 0 ? 'var(--ok)' : 'var(--danger)', fontSize: 16 }}>{inr(netProfit)}</td>
                     </tr>
                     <tr><td className="muted">Discount given away</td><td className="num muted">{inr(agg.discount)}</td></tr>
+                    <tr><td className="muted">Customers paid in total <span className="small">(includes {inr(agg.gst)} GST held for the government)</span></td><td className="num muted">{inr(agg.revenue)}</td></tr>
+                    {gstPaid > 0 && <tr><td className="muted">GST paid to the government in this period <span className="small">(not an expense)</span></td><td className="num muted">{inr(gstPaid)}</td></tr>}
                   </tbody>
                 </table>
               </section>
@@ -312,7 +323,7 @@ export default function Reports() {
                 {!itemRows.length ? <Empty icon={<TrendUp size={24} />} title={itemNeedle ? 'No items match' : 'Nothing sold in this period'} /> : (
                   <div className="table-wrap" style={{ maxHeight: '64vh', overflowY: 'auto' }}>
                     <table className="tbl">
-                      <thead><tr><th>Item</th><th>Variant</th><th className="num">Pieces</th><th className="num">Revenue</th>{can('viewProfit') && <><th className="num">Cost</th><th className="num">Margin</th></>}<th>Share</th></tr></thead>
+                      <thead><tr><th>Item</th><th>Variant</th><th className="num">Pieces</th><th className="num">Sales (excl. GST)</th>{can('viewProfit') && <><th className="num">Cost</th><th className="num">Margin</th></>}<th>Share</th></tr></thead>
                       <tbody>
                         {itemRows.slice(0, itemLimit).map((r, i) => (
                           <tr key={i}>
@@ -368,32 +379,54 @@ export default function Reports() {
   )
 }
 
-/** Z-report: what should be in the cash drawer at close, versus what was counted. */
+/**
+ * Z-report: what should be in the cash drawer at close, versus what was counted.
+ *
+ * A "day" is a session: the owner counts the opening cash and opens it, sells, then counts again and closes it.
+ * A closed session is frozen — only sales and expenses between its opening and closing are used, so its figures
+ * never change after the fact.
+ */
 function DayClose() {
   const { toast, user, settings } = useApp()
   const { print } = usePrint()
   const session = useLiveQuery(() => db.sessions.orderBy('openedAt').reverse().first(), [], undefined)
+  const isOpen = !!session && !session.closedAt
+  const closed = !!session?.closedAt
   const dayStart = session?.openedAt ?? startOfDay()
-  const today = useLiveQuery(() => db.bills.where('date').aboveOrEqual(dayStart).toArray().then((l) => l.filter((b) => b.status !== 'held')), [dayStart], [] as Bill[]) ?? []
+  const dayEnd = session?.closedAt ?? Number.POSITIVE_INFINITY
+
+  const today = useLiveQuery(
+    () => db.bills.where('date').aboveOrEqual(dayStart).toArray().then((l) => l.filter((b) => b.status !== 'held' && b.date <= dayEnd)),
+    [dayStart, dayEnd], [] as Bill[]) ?? []
   const cashExpenses = useLiveQuery(async () => {
     let s = 0
-    await db.expenses.where('date').aboveOrEqual(dayStart).each((e) => { if (e.mode === 'cash') s += e.amount })
+    await db.expenses.where('date').aboveOrEqual(dayStart).each((e) => { if (e.mode === 'cash' && e.date <= dayEnd) s += e.amount })
     return round2(s)
-  }, [dayStart], 0) ?? 0
+  }, [dayStart, dayEnd], 0) ?? 0
 
   const [counted, setCounted] = useState('')
+  const [openingInput, setOpeningInput] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const closed = !!session?.closedAt
 
+  // Cash payments already net of change given back, and a cash refund on a return is a negative cash payment.
   const cashIn = round2(today.reduce((s, b) => s + b.payments.filter((p) => p.mode === 'cash').reduce((t, p) => t + p.amount, 0), 0))
-  const digital = round2(today.reduce((s, b) => s + b.payments.filter((p) => p.mode !== 'cash').reduce((t, p) => t + p.amount, 0), 0))
+  const digital = round2(today.reduce((s, b) => s + b.payments.filter((p) => p.mode === 'upi' || p.mode === 'card').reduce((t, p) => t + p.amount, 0), 0))
   const opening = session?.openingCash ?? 0
   const expected = round2(opening + cashIn - cashExpenses)
   const variance = round2((Number(counted) || 0) - expected)
 
+  async function openDay() {
+    const cash = Number(openingInput)
+    if (openingInput === '' || !Number.isFinite(cash) || cash < 0) { toast('Enter the cash in the drawer to open the day (0 if empty)', 'err'); return }
+    await db.sessions.add({ id: id('ses'), openedAt: Date.now(), openedBy: user?.id ?? '', openingCash: round2(cash) })
+    setOpeningInput(''); setCounted('')
+    toast('Day opened', 'ok')
+  }
+
   async function close() {
-    if (!session) { toast('No open session found', 'err'); return }
+    if (!session || !isOpen) { toast('No open day to close', 'err'); return }
     await db.sessions.update(session.id, { closedAt: Date.now(), closedBy: user?.id, countedCash: Number(counted) || 0, expectedCash: expected, variance })
+    setCounted('')
     toast('Day closed — Z report saved', 'ok')
   }
 
@@ -401,36 +434,49 @@ function DayClose() {
     print(<ReportPrint store={settings?.name ?? ''} title="Day close (Z report)" period={new Date(dayStart).toLocaleString('en-IN')}
       cols={[{ key: 'line', label: 'Particulars' }, { key: 'amount', label: 'Amount', money: true }]}
       rows={[
-        { line: 'Opening cash', amount: opening }, { line: '+ Cash sales', amount: cashIn }, { line: '− Cash expenses paid out', amount: -cashExpenses },
+        { line: 'Opening cash', amount: opening }, { line: '+ Cash received (net of cash refunds)', amount: cashIn }, { line: '− Cash expenses paid out', amount: -cashExpenses },
         { line: 'Expected in drawer', amount: expected },
-        ...(session?.closedAt || counted !== '' ? [{ line: 'Cash counted', amount: session?.countedCash ?? (Number(counted) || 0) }, { line: variance === 0 ? 'Drawer tallies' : variance > 0 ? 'Excess cash' : 'Short', amount: Math.abs(session?.variance ?? variance) }] : []),
+        ...(closed || counted !== '' ? [{ line: 'Cash counted', amount: session?.countedCash ?? (Number(counted) || 0) }, { line: (session?.variance ?? variance) === 0 ? 'Drawer tallies' : (session?.variance ?? variance) > 0 ? 'Excess cash' : 'Short', amount: Math.abs(session?.variance ?? variance) }] : []),
         { line: 'Card + UPI collected', amount: digital },
       ]} />)
   }
+
+  const openForm = (
+    <>
+      <div className="small muted" style={{ marginBottom: 10 }}>
+        {closed ? 'This day is closed. To start the next one, count the cash in the drawer and enter it.' : 'No day is open yet. Count the cash in the drawer and enter it to start the day — the closing count is checked against it.'}
+      </div>
+      <label className="field">
+        <span>Opening cash in drawer</span>
+        <input className="input input-lg num" inputMode="decimal" value={openingInput} placeholder="0"
+          onChange={(e) => setOpeningInput(e.target.value.replace(/[^\d.]/g, ''))}
+          onKeyDown={(e) => { if (e.key === 'Enter') void openDay() }} />
+      </label>
+      <button className="btn btn-primary btn-lg btn-block" style={{ marginTop: 12 }} disabled={openingInput === ''} onClick={() => void openDay()}>Open the day</button>
+    </>
+  )
 
   return (
     <div className="grid grid-2">
       <section className="card">
         <div className="card-head">
           <h2>Cash drawer</h2>
-          {closed ? <span className="badge badge-ok">Closed {new Date(session!.closedAt!).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span> : <span className="badge badge-warn">Open</span>}
+          {closed ? <span className="badge badge-ok">Closed {new Date(session!.closedAt!).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+            : isOpen ? <span className="badge badge-warn">Open</span> : <span className="badge">Not open</span>}
         </div>
         <div className="card-body">
-          <table className="tbl">
-            <tbody>
-              <tr><td>Opening cash</td><td className="num">{inr(opening)}</td></tr>
-              <tr><td>+ Cash sales</td><td className="num">{inr(cashIn)}</td></tr>
-              <tr><td>− Cash expenses paid out</td><td className="num">− {inr(cashExpenses)}</td></tr>
-              <tr style={{ background: '#eaeef6' }}><td className="bold">Expected in drawer</td><td className="num bold">{inr(expected)}</td></tr>
-            </tbody>
-          </table>
+          {session && (
+            <table className="tbl">
+              <tbody>
+                <tr><td>Opening cash</td><td className="num">{inr(opening)}</td></tr>
+                <tr><td>+ Cash received <span className="small muted">(net of cash refunds)</span></td><td className="num">{inr(cashIn)}</td></tr>
+                <tr><td>− Cash expenses paid out</td><td className="num">− {inr(cashExpenses)}</td></tr>
+                <tr style={{ background: '#eaeef6' }}><td className="bold">Expected in drawer</td><td className="num bold">{inr(expected)}</td></tr>
+              </tbody>
+            </table>
+          )}
 
-          {closed ? (
-            <div className={`pay-banner ${(session!.variance ?? 0) === 0 ? 'change' : 'short'}`} style={{ marginTop: 14 }}>
-              <span>Counted {inr(session!.countedCash ?? 0)} · {(session!.variance ?? 0) === 0 ? 'drawer tallied' : (session!.variance ?? 0) > 0 ? 'excess' : 'short by'}</span>
-              {(session!.variance ?? 0) !== 0 && <b className="num">{inr(Math.abs(session!.variance ?? 0))}</b>}
-            </div>
-          ) : (
+          {isOpen && (
             <>
               <div style={{ marginTop: 14 }}>
                 <label className="field">
@@ -444,23 +490,36 @@ function DayClose() {
                   : <><span>{variance > 0 ? 'Excess cash' : 'Short'}</span><b className="num">{inr(Math.abs(variance))}</b></>}
               </div>
               <button className="btn btn-primary btn-lg btn-block" style={{ marginTop: 14 }} disabled={counted === ''} onClick={() => setConfirming(true)}>Close the day</button>
+              <div className="small muted" style={{ marginTop: 10 }}>
+                Cash paid to suppliers or taken out of the drawer should be entered as a cash expense, otherwise the drawer will show short.
+              </div>
             </>
           )}
-          <button className="btn btn-block" style={{ marginTop: 10 }} onClick={printZ}><Printer size={15} /> Print Z report</button>
+
+          {closed && (
+            <div className={`pay-banner ${(session!.variance ?? 0) === 0 ? 'change' : 'short'}`} style={{ marginTop: 14 }}>
+              <span>Counted {inr(session!.countedCash ?? 0)} · {(session!.variance ?? 0) === 0 ? 'drawer tallied' : (session!.variance ?? 0) > 0 ? 'excess' : 'short by'}</span>
+              {(session!.variance ?? 0) !== 0 && <b className="num">{inr(Math.abs(session!.variance ?? 0))}</b>}
+            </div>
+          )}
+
+          {!isOpen && <div style={{ marginTop: session ? 18 : 0 }}>{openForm}</div>}
+
+          {session && <button className="btn btn-block" style={{ marginTop: 10 }} onClick={printZ}><Printer size={15} /> Print Z report</button>}
         </div>
       </section>
 
       <section className="card" style={{ alignSelf: 'start' }}>
-        <div className="card-head"><h2>Today at a glance</h2></div>
+        <div className="card-head"><h2>{closed ? 'That day at a glance' : 'Today at a glance'}</h2></div>
         <div className="card-body">
           <div className="grid grid-2">
-            <Stat label="Bills" value={today.filter((b) => b.total > 0).length} icon={<BillsIcon />} />
-            <Stat label="Total sales" value={inr(round2(today.reduce((s, b) => s + b.total, 0)))} icon={<RupeeIcon />} tone="ok" />
-            <Stat label="Cash collected" value={inr(cashIn)} icon={<CashIcon />} tone="warn" />
+            <Stat label="Bills" value={today.filter((b) => b.total >= 0).length} icon={<BillsIcon />} />
+            <Stat label="Total sales" value={inr(round2(today.reduce((s, b) => s + b.total, 0)))} icon={<RupeeIcon />} tone="ok" foot="net of returns" />
+            <Stat label="Cash received" value={inr(cashIn)} icon={<CashIcon />} tone="warn" />
             <Stat label="Card + UPI" value={inr(digital)} icon={<CardIcon />} tone="brand" />
           </div>
           <div className="small muted" style={{ marginTop: 12 }}>
-            Session opened {new Date(dayStart).toLocaleString('en-IN')}
+            {session ? <>Opened {new Date(dayStart).toLocaleString('en-IN')}</> : <>Showing sales since midnight</>}
             {session?.closedAt && <> · closed {new Date(session.closedAt).toLocaleString('en-IN')}</>}
           </div>
         </div>

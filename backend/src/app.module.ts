@@ -14,6 +14,7 @@ import { BillsController } from './modules/bills.controller'
 import { ExpensesController, PurchasesController, SessionsController, StockController } from './modules/operations.controller'
 import { SyncController } from './modules/sync.controller'
 import { BackupsController } from './modules/backups.controller'
+import { AdminController, DeviceHealthController } from './modules/health.controller'
 import { DbService } from './db/db.service'
 
 @Controller('health')
@@ -45,7 +46,7 @@ function jwtSecret(): string {
   controllers: [
     HealthController, AuthController, UsersController, StoreController, CategoriesController, CatalogController,
     CustomersController, SuppliersController, BillsController, StockController, ExpensesController, PurchasesController,
-    SessionsController, SyncController, BackupsController,
+    SessionsController, SyncController, BackupsController, DeviceHealthController, AdminController,
   ],
   providers: [
     AuthService,

@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt'
 import type { Request } from 'express'
 
 export type Role = 'owner' | 'manager' | 'cashier'
-export interface Claims { sub: string; storeId: string; role: Role }
+export interface Claims { sub: string; storeId: string; role: Role; /** Developer/support account: set only in the database. */ superAdmin?: boolean }
 
 /** Mirrors the frontend's permission matrix (src/state.tsx) — the API enforces it independently of the UI. */
 const ROLE_PERMISSIONS: Record<Role, string[]> = {
@@ -32,8 +32,8 @@ export class AuthGuard implements CanActivate {
     const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')
     if (!m) throw new UnauthorizedException('Missing or malformed Authorization header')
     try {
-      const p = await this.jwt.verifyAsync<{ sub: string; store_id: string; role: Role }>(m[1])
-      req.claims = { sub: p.sub, storeId: p.store_id, role: p.role }
+      const p = await this.jwt.verifyAsync<{ sub: string; store_id: string; role: Role; sa?: boolean }>(m[1])
+      req.claims = { sub: p.sub, storeId: p.store_id, role: p.role, superAdmin: p.sa === true }
     } catch (e) {
       throw new UnauthorizedException((e as Error).name === 'TokenExpiredError' ? 'Session expired — please log in again' : 'Invalid token')
     }
