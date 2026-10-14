@@ -23,7 +23,8 @@
         "decorations": true,
         "backgroundColor": "#f4f6fa",
         "visible": false,
-        "label": "main"
+        "label": "main",
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --kiosk-printing"
       }
     ],
     "security": {
