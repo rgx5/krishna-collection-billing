@@ -69,8 +69,9 @@ export function textSizes(widthMm: number, heightMm: number, texts: { store: str
   const room = heightMm * PX_PER_MM - 2 * pad - barBlock - 4 * gap
   // Rows are store 1.1x, name 1x and the two price rows 1.5x of `base`, each 1.14 line-height: 5.1 units of base.
   const base = Math.max(8, Math.min(18, room / (1.14 * 5.1)))
-  const innerW = widthMm * PX_PER_MM - 2 * pad - 2
-  const byWidth = (chars: number, cap: number) => Math.max(8, Math.min(cap, innerW / (0.66 * Math.max(1, chars))))
+  // Leave a little room on the right too: bold figures run wider than the estimate and printers clip the last pixels.
+  const innerW = widthMm * PX_PER_MM - 2 * pad - 2 - 6
+  const byWidth = (chars: number, cap: number) => Math.max(8, Math.min(cap, innerW / (0.72 * Math.max(1, chars))))
   return {
     digits,
     store: byWidth(texts.store.length, base * 1.1),
