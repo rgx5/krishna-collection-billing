@@ -6,6 +6,7 @@
 
 use serde::Serialize;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_fs::FsExt;
 
 #[derive(Serialize)]
 pub struct SaveResult {
@@ -58,4 +59,22 @@ pub async fn open_backup(app: tauri::AppHandle) -> Result<OpenResult, String> {
     let path = file_path.into_path().map_err(|e| e.to_string())?;
     let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
     Ok(OpenResult { ok: true, text: Some(text) })
+}
+
+/// Lets the app read and write inside a folder the owner chose for automatic backups. The static permission list
+/// only covers the default places; a folder picked in Settings has to be added to it at runtime (and again on each
+/// start, which the page does before the first backup).
+#[tauri::command]
+pub fn allow_backup_folder(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    app.fs_scope().allow_directory(&path, true).map_err(|e| e.to_string())
+}
+
+/// Native folder picker for the backup location. Returns the chosen folder (already allowed), or None if cancelled.
+#[tauri::command]
+pub async fn pick_backup_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().set_title("Choose the folder for backup files").blocking_pick_folder();
+    let Some(folder) = picked else { return Ok(None) };
+    let path = folder.into_path().map_err(|e| e.to_string())?;
+    app.fs_scope().allow_directory(&path, true).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }

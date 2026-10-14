@@ -62,3 +62,13 @@ export async function printRaw(target: PrinterTarget, data: Uint8Array): Promise
 export async function printSilent(): Promise<void> {
   await invoke('print_silent')
 }
+
+/** Opens a folder picker for the backup location; resolves to the chosen folder or null if cancelled. */
+export async function pickBackupFolder(): Promise<string | null> {
+  return invoke('pick_backup_folder')
+}
+
+/** Re-grants the app access to a previously chosen backup folder (access is per run, not remembered). */
+export async function allowBackupFolder(path: string): Promise<void> {
+  await invoke('allow_backup_folder', { path })
+}

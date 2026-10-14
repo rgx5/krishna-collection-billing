@@ -29,7 +29,7 @@ export interface BackupState {
   /** Whether the system promised not to clear this app's stored data on its own (null = unknown / unsupported). */
   persisted: boolean | null
   cloud: { okAt: number; uploadedAt: number; size: number; error: string | null; blocked: boolean }
-  local: { supported: boolean; okAt: number; file: string; folder: string; error: string | null; encrypted: boolean; drive: string }
+  local: { supported: boolean; okAt: number; file: string; folder: string; error: string | null; encrypted: boolean; drive: string; customDir: string }
   nextCloudAt: number
   nextLocalAt: number
 }
@@ -41,6 +41,8 @@ interface Prefs {
   localSum: string; localOkAt: number; localFile: string; localFolder: string
   /** Optional second location: a drive letter such as "E" (a USB stick or second disk). Empty = none. */
   driveLetter: string
+  /** Folder chosen in Settings for the backup files on this computer. Empty = Documents\\Krishna Collection Backups. */
+  customDir: string
   /** Backup files on this computer are encrypted with the recovery key kept in FILE_KEY. */
   encryptFiles: boolean
 }
@@ -55,7 +57,7 @@ function loadPrefs(): Prefs {
   const fresh: Prefs = {
     intervalMin: 15, device: `${isDesktop() ? 'Desktop' : 'Browser'}-${Math.random().toString(36).slice(2, 6)}`,
     cloudSum: '', cloudOkAt: 0, cloudUploadedAt: 0, cloudSize: 0, localSum: '', localOkAt: 0, localFile: '', localFolder: '',
-    driveLetter: '', encryptFiles: false,
+    driveLetter: '', customDir: '', encryptFiles: false,
   }
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null') as Partial<Prefs> | null
@@ -72,7 +74,7 @@ let localTryAt = 0
 let state: BackupState = {
   intervalMin: prefs.intervalMin, running: false, persisted: null,
   cloud: { okAt: prefs.cloudOkAt, uploadedAt: prefs.cloudUploadedAt, size: prefs.cloudSize, error: null, blocked: false },
-  local: { supported: false, okAt: prefs.localOkAt, file: prefs.localFile, folder: prefs.localFolder, error: null, encrypted: prefs.encryptFiles, drive: prefs.driveLetter },
+  local: { supported: false, okAt: prefs.localOkAt, file: prefs.localFile, folder: prefs.localFolder, error: null, encrypted: prefs.encryptFiles, drive: prefs.driveLetter, customDir: prefs.customDir },
   nextCloudAt: 0, nextLocalAt: 0,
 }
 state.local.supported = isDesktop()
@@ -287,6 +289,13 @@ export function setBackupDrive(letter: string) {
   setState({ local: { drive: l } })
 }
 
+/** Where the backup files on this computer go. '' puts them back in Documents\\Krishna Collection Backups. */
+export function setBackupFolder(path: string) {
+  prefs = { ...prefs, customDir: path, localSum: '' }
+  savePrefs()
+  setState({ local: { customDir: path } })
+}
+
 type FsApi = typeof import('@tauri-apps/plugin-fs')
 /** A folder to write into: relative to a well-known folder (Documents), or an absolute path on another drive. */
 interface Target { label: string; dir: string; base?: number }
@@ -333,7 +342,7 @@ export async function backupToDisk(opts: { manual?: boolean } = {}): Promise<{ o
   try {
     const snap = await snapshot({ stripPins: false })
     // The fingerprint also covers where and how the files are written, so changing either triggers a fresh write.
-    const mark = `${snap.sum}|${prefs.encryptFiles ? 'e' : 'p'}|${prefs.driveLetter}`
+    const mark = `${snap.sum}|${prefs.encryptFiles ? 'e' : 'p'}|${prefs.driveLetter}|${prefs.customDir}`
     if (!opts.manual && mark === prefs.localSum) {
       prefs.localOkAt = Date.now(); savePrefs()
       setState({ local: { okAt: prefs.localOkAt, error: null } })
@@ -348,7 +357,15 @@ export async function backupToDisk(opts: { manual?: boolean } = {}): Promise<{ o
     }
 
     const fs = await import('@tauri-apps/plugin-fs')
-    const targets: Target[] = [{ label: 'Documents', dir: FOLDER, base: fs.BaseDirectory.Document }]
+    const targets: Target[] = []
+    if (prefs.customDir) {
+      // A folder picked in Settings is only allowed for the run it was picked in, so allow it again before writing.
+      const { allowBackupFolder } = await import('./tauri')
+      await allowBackupFolder(prefs.customDir)
+      targets.push({ label: prefs.customDir, dir: prefs.customDir })
+    } else {
+      targets.push({ label: 'Documents', dir: FOLDER, base: fs.BaseDirectory.Document })
+    }
     if (prefs.driveLetter) targets.push({ label: `Drive ${prefs.driveLetter}:`, dir: `${prefs.driveLetter}:\\${FOLDER}` })
 
     const now = new Date()
@@ -363,7 +380,7 @@ export async function backupToDisk(opts: { manual?: boolean } = {}): Promise<{ o
     let folder = prefs.localFolder
     try {
       const path = await import('@tauri-apps/api/path')
-      folder = await path.join(await path.documentDir(), FOLDER)
+      folder = prefs.customDir || await path.join(await path.documentDir(), FOLDER)
       if (prefs.driveLetter) folder += `  +  ${prefs.driveLetter}:\\${FOLDER}`
     } catch { /* display only */ }
 
