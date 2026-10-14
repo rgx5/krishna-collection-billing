@@ -1,5 +1,5 @@
 import { db, logAudit } from './index'
-import { withStockSyncSuppressed } from './syncHooks'
+import { withStockSyncSuppressed, withSyncPaused } from './syncHooks'
 import type { Bill, MoveType, Purchase, StoreSettings, Variant } from './types'
 import { id, pad } from '../lib/id'
 import { round2 } from '../lib/money'
@@ -230,4 +230,29 @@ export async function findByBarcode(code: string): Promise<VariantView | null> {
     hsn: p?.hsn ?? '',
     categoryId: p?.categoryId ?? '',
   }
+}
+
+/**
+ * Deletes every customer and bill (sales and returns) on this device and puts the sold stock back, then restarts
+ * invoice numbering at 1. Used to clear test data. Runs with sync paused so nothing is queued for upload, and the
+ * rows still waiting in the outbox for the deleted records are dropped so they can't recreate them in the cloud.
+ */
+export async function clearSalesData(): Promise<{ bills: number; customers: number }> {
+  return withSyncPaused(() => db.transaction('rw', [db.bills, db.customers, db.moves, db.variants, db.settings, db.outbox], async () => {
+    const sold = await db.moves.where('type').anyOf('sale', 'return').toArray()
+    const back = new Map<string, number>()
+    for (const m of sold) back.set(m.variantId, (back.get(m.variantId) ?? 0) + m.qty)
+    for (const [variantId, qty] of back) {
+      const v = await db.variants.get(variantId)
+      if (v) await db.variants.update(variantId, { stock: v.stock - qty })
+    }
+    await db.moves.bulkDelete(sold.map((m) => m.id))
+    const bills = await db.bills.count()
+    const customers = await db.customers.count()
+    await db.bills.clear()
+    await db.customers.clear()
+    await db.outbox.where('entity').anyOf('bill', 'billReturn', 'customer', 'customerUpdate').delete()
+    await db.settings.update('store', { nextInvoiceNo: 1 })
+    return { bills, customers }
+  }))
 }
