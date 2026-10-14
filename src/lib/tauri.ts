@@ -57,3 +57,8 @@ export type PrinterTarget =
 export async function printRaw(target: PrinterTarget, data: Uint8Array): Promise<void> {
   await invoke('print_raw', { target, data: Array.from(data) })
 }
+
+/** Prints the current page to the Windows default printer without the print dialog (receipts). Rejects if unsupported. */
+export async function printSilent(): Promise<void> {
+  await invoke('print_silent')
+}

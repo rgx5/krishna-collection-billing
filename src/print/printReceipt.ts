@@ -13,7 +13,7 @@ import { Receipt } from './Receipt'
  * this instead of repeating the same branch.
  */
 export async function printReceiptSmart(
-  print: (node: ReactNode) => void,
+  print: (node: ReactNode, opts?: { silent?: boolean }) => void,
   bill: Bill,
   settings: StoreSettings,
   customer: Customer | null | undefined,
@@ -33,5 +33,5 @@ export async function printReceiptSmart(
       }
     }
   }
-  print(createElement(Receipt, { bill, settings, customer, cashier }))
+  print(createElement(Receipt, { bill, settings, customer, cashier }), { silent: true })
 }

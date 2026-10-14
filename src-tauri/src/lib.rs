@@ -27,6 +27,7 @@ pub fn run() {
             backup::open_backup,
             printer::list_serial_ports,
             printer::print_raw,
+            printer::print_silent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
