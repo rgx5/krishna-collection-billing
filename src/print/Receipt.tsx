@@ -26,9 +26,7 @@ export function Receipt({ bill, settings, customer, cashier }: {
       <div className="c">
         <div className="store">{settings.name}</div>
         <div>{settings.tagline}</div>
-        <div>{settings.address}</div>
-        <div>{settings.city}</div>
-        <div>Ph: {settings.phone}</div>
+        <div>{[settings.address, settings.city].filter(Boolean).join(', ')} · Ph: {settings.phone}</div>
         {settings.gstin && <div>GSTIN: {settings.gstin}</div>}
       </div>
       <hr />
@@ -92,8 +90,8 @@ export function Receipt({ bill, settings, customer, cashier }: {
           </tr>
         </tbody>
       </table>
-      <div style={{ fontSize: 10 }}>{amountInWords(Math.abs(bill.total))}</div>
-      {!opt.showTax && <div style={{ fontSize: 9.5 }}>Inclusive of all taxes</div>}
+      <div style={{ fontSize: 12 }}>{amountInWords(Math.abs(bill.total))}</div>
+      {!opt.showTax && <div style={{ fontSize: 11.5 }}>Inclusive of all taxes</div>}
       <hr />
       <table>
         <tbody>
@@ -110,13 +108,13 @@ export function Receipt({ bill, settings, customer, cashier }: {
         </>
       )}
       {opt.showLoyalty && customer && (bill.loyaltyEarned > 0 || customer.loyaltyPoints > 0) && (
-        <div className="c" style={{ fontSize: 10 }}>
+        <div className="c" style={{ fontSize: 12 }}>
           Loyalty: +{bill.loyaltyEarned} pts earned
         </div>
       )}
       {opt.showHsn && <>
       <hr />
-      <div style={{ fontSize: 9.5 }}>
+      <div style={{ fontSize: 11.5 }}>
         <strong>HSN Summary</strong>
         <table>
           <tbody>
@@ -134,12 +132,12 @@ export function Receipt({ bill, settings, customer, cashier }: {
       </div>
       </>}
       <hr />
-      <div className="c" style={{ fontSize: 9.5 }}>{settings.returnPolicy}</div>
+      <div className="c" style={{ fontSize: 11.5 }}>{settings.returnPolicy}</div>
       <div className="c" style={{ margin: '6px 0' }}>
-        <Barcode value={bill.no.replace(/[^A-Za-z0-9-]/g, '')} height={30} width={1.1} fontSize={9} />
+        <Barcode value={bill.no.replace(/[^A-Za-z0-9-]/g, '')} height={30} width={1.1} fontSize={11} />
       </div>
       <div className="c"><strong>{settings.footerNote}</strong></div>
-      <div className="c" style={{ fontSize: 9 }}>Krishna Collection</div>
+      <div className="c" style={{ fontSize: 11 }}>Krishna Collection</div>
     </div>
   )
 }

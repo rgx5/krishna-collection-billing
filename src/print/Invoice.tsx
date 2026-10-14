@@ -25,7 +25,7 @@ export function Invoice({ bill, settings, customer, cashier }: {
           <div><strong>GSTIN: {settings.gstin}</strong></div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '.06em' }}>TAX INVOICE</div>
+          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '.06em' }}>TAX INVOICE</div>
           <div>Invoice No: <strong>{bill.no}</strong></div>
           <div>Date: {d(bill.date)}</div>
           <div>Billed by: {cashier?.name ?? '—'}</div>
@@ -37,14 +37,14 @@ export function Invoice({ bill, settings, customer, cashier }: {
 
       <div style={{ border: '1px solid #999', padding: 8, margin: '12px 0', display: 'flex', gap: 24 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: '#555' }}>Bill To</div>
+          <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.05em', color: '#555' }}>Bill To</div>
           <div><strong>{customer?.name ?? 'Walk-in Customer'}</strong></div>
           {customer?.phone && <div>Mobile: {customer.phone}</div>}
           {customer?.address && <div>{customer.address}</div>}
           {customer?.gstin && <div>GSTIN: {customer.gstin}</div>}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: '#555' }}>Place of Supply</div>
+          <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.05em', color: '#555' }}>Place of Supply</div>
           <div>{settings.city}</div>
           <div>Payment: {bill.payments.map((p) => p.mode.toUpperCase()).join(' + ')}</div>
         </div>
@@ -70,7 +70,7 @@ export function Invoice({ bill, settings, customer, cashier }: {
           {bill.items.map((it, i) => (
             <tr key={i}>
               <td>{i + 1}</td>
-              <td>{it.name}<div style={{ fontSize: 10, color: '#555' }}>{[it.color, it.sku].filter(Boolean).join(' · ')}</div></td>
+              <td>{it.name}<div style={{ fontSize: 11.5, color: '#555' }}>{[it.color, it.sku].filter(Boolean).join(' · ')}</div></td>
               <td>{it.hsn}</td>
               <td>{it.size}</td>
               <td className="num">{it.qty}</td>
@@ -100,10 +100,10 @@ export function Invoice({ bill, settings, customer, cashier }: {
               ))}
             </tbody>
           </table>
-          <div style={{ marginTop: 10, fontSize: 11 }}>
+          <div style={{ marginTop: 10, fontSize: 12.5 }}>
             <strong>Amount in words:</strong> {amountInWords(Math.abs(bill.total))}
           </div>
-          <div style={{ marginTop: 10, fontSize: 10.5, color: '#444' }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: '#444' }}>
             <strong>Terms:</strong> {settings.returnPolicy}
           </div>
         </div>
@@ -123,13 +123,13 @@ export function Invoice({ bill, settings, customer, cashier }: {
               </tr>
             </tbody>
           </table>
-          <div style={{ marginTop: 46, textAlign: 'center', borderTop: '1px solid #999', paddingTop: 5, fontSize: 11 }}>
+          <div style={{ marginTop: 46, textAlign: 'center', borderTop: '1px solid #999', paddingTop: 5, fontSize: 12.5 }}>
             For {settings.name}<br />Authorised Signatory
           </div>
         </div>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 14, fontSize: 10.5, color: '#555' }}>
+      <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: '#555' }}>
         This is a computer-generated invoice. {settings.footerNote}
       </div>
     </div>
