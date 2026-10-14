@@ -1,5 +1,6 @@
 import { useApp } from '../state'
 import { CloudSignIn } from '../components/CloudSignIn'
+import { isDesktop } from '../lib/tauri'
 import { fetchSnapshot, hydrateFromSnapshot } from '../lib/cloud'
 
 /** First launch on a new device: sign in and bring the store down from the cloud. */
@@ -32,6 +33,14 @@ export default function Setup() {
         <div className="tiny muted center" style={{ marginTop: 16 }}>
           Billing keeps working offline after this — changes upload automatically when you're back online.
         </div>
+
+        {!isDesktop() && (
+          <div className="tiny center" style={{ marginTop: 10 }}>
+            <a href="https://github.com/rgx5/krishna-collection-billing/releases/latest" target="_blank" rel="noreferrer">
+              Download the latest Windows desktop app
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )
