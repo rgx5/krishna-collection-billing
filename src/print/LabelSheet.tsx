@@ -59,7 +59,7 @@ export function labelVars(widthMm: number, heightMm: number, gapMm = 0): CSSProp
  * the old fixed sizes — scaled down with the barcode — came out around 7px. Here the barcode keeps its size and the
  * four text rows share what remains, then each row is limited by its own width so nothing runs off the sticker.
  */
-export function textSizes(widthMm: number, heightMm: number, texts: { store: string; price: string; sku: string }) {
+export function textSizes(widthMm: number, heightMm: number, texts: { store: string; market: string; rate: string }) {
   const s = fitScale(heightMm)
   const sp = spacingMm(heightMm)
   const pad = sp.pad * PX_PER_MM
@@ -67,16 +67,16 @@ export function textSizes(widthMm: number, heightMm: number, texts: { store: str
   const digits = 11 * s
   const barBlock = 36 * s + digits * 1.35 + 3 // bars + the number under them (+ its margin)
   const room = heightMm * PX_PER_MM - 2 * pad - barBlock - 4 * gap
-  // Rows are store 1.1x, name 1x, price 1.05x, sku 1x of `base`, each 1.14 line-height: 4.15 units of base.
-  const base = Math.max(8, Math.min(18, room / (1.14 * 4.15)))
+  // Rows are store 1.1x, name 1x and the two price rows 1.5x of `base`, each 1.14 line-height: 5.1 units of base.
+  const base = Math.max(8, Math.min(18, room / (1.14 * 5.1)))
   const innerW = widthMm * PX_PER_MM - 2 * pad - 2
   const byWidth = (chars: number, cap: number) => Math.max(8, Math.min(cap, innerW / (0.66 * Math.max(1, chars))))
   return {
     digits,
     store: byWidth(texts.store.length, base * 1.1),
     name: base,
-    price: byWidth(texts.price.length, base * 1.05),
-    sku: byWidth(texts.sku.length, base),
+    market: byWidth(texts.market.length, base * 1.5),
+    rate: byWidth(texts.rate.length, base * 1.5),
   }
 }
 
@@ -98,11 +98,10 @@ export function LabelFace({ l, storeName, showMrp = true, widthMm, heightMm }: {
 }) {
   const scale = fitScale(heightMm)
   const variant = [l.size, l.color].filter(Boolean).join(' / ')
-  // Both prices when the selling price is below the MRP; otherwise a single figure, so nothing is printed twice.
   const sell = l.price && l.price > 0 ? l.price : l.mrp
-  const showBoth = showMrp && sell < l.mrp
-  const priceText = showBoth ? `MRP ${price(l.mrp)}  Price ${price(sell)}` : showMrp ? `MRP ${price(l.mrp)}` : `Price ${price(sell)}`
-  const fs = textSizes(widthMm ?? 50, heightMm, { store: storeName, price: priceText, sku: l.sku })
+  const marketText = `Market price ${price(l.mrp)}`
+  const rateText = `MRP Rate ${price(sell)}`
+  const fs = textSizes(widthMm ?? 50, heightMm, { store: storeName, market: marketText, rate: rateText })
   // The barcode keeps its size exactly (36px tall bars, 1.25px modules, scaled only with the label height); only the
   // number under it is made bolder and a little larger so it can be read.
   const bars = getBarcodeMarkup(l.barcode, { height: 36 * scale, width: 1.25, fontSize: fs.digits, bold: true })
@@ -114,15 +113,14 @@ export function LabelFace({ l, storeName, showMrp = true, widthMm, heightMm }: {
         {variant && <span className="lbl-variant"> · {variant}</span>}
       </div>
       <span className="lbl-bar" dangerouslySetInnerHTML={{ __html: bars }} />
-      <div className="lbl-foot" style={{ fontSize: fs.price, justifyContent: showBoth ? 'space-between' : 'center' }}>
-        {showBoth ? (
-          <>
-            <span className="lbl-mrp">MRP {price(l.mrp)}</span>
-            <span className="lbl-price">Price {price(sell)}</span>
-          </>
-        ) : <span className="lbl-mrp">{showMrp ? `MRP ${price(l.mrp)}` : `Price ${price(sell)}`}</span>}
+      {showMrp && (
+        <div className="lbl-pricerow" style={{ fontSize: fs.market }}>
+          <span>Market price</span><span>{price(l.mrp)}</span>
+        </div>
+      )}
+      <div className="lbl-pricerow" style={{ fontSize: fs.rate }}>
+        <span>MRP Rate</span><span>{price(sell)}</span>
       </div>
-      <div className="lbl-skuline" style={{ fontSize: fs.sku }}><span className="lbl-sku">{l.sku}</span></div>
     </>
   )
 }

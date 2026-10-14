@@ -1229,3 +1229,6 @@ table.tbl th { font-weight: 700; }
 .exp-row .exp-act { opacity: 0; transition: opacity .1s; }
 .exp-row:hover .exp-act, .exp-row.sel .exp-act, .exp-act:focus-visible { opacity: 1; }
 @media (hover: none) { .exp-row .exp-act { opacity: 1; } }
+
+/* Label price rows: "Market price" and "MRP Rate", large, label left and amount right. */
+.label-cell .lbl-pricerow { display: flex; justify-content: space-between; align-items: baseline; gap: 1mm; font-weight: 800; line-height: 1.14; white-space: nowrap; }
