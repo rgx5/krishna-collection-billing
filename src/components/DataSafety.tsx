@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Confirm, Empty, Modal, Segmented } from './ui'
 import { Download, Refresh, HistoryIcon } from './icons'
 import { useApp } from '../state'
-import { isDesktop, saveBackup } from '../lib/tauri'
+import { isDesktop, pickBackupFolder, saveBackup } from '../lib/tauri'
 import { retryRejected, syncNow } from '../lib/sync'
 import {
   INTERVALS, backupNow, disableFileProtection, enableFileProtection, fetchCloudBackup, getFileRecoveryKey, listCloudBackups,
-  restoreBackup, setBackupDrive, setIntervalMin,
+  restoreBackup, setBackupDrive, setBackupFolder, setIntervalMin,
   type BackupPayload, type CloudBackupInfo, type IntervalMin,
 } from '../lib/backup'
 import { ago, useBackupState, useNow } from '../lib/useBackup'
@@ -32,6 +32,18 @@ export function DataSafety() {
   const [keyDialog, setKeyDialog] = useState<{ mode: 'new' | 'view'; key: string } | null>(null)
   const [keySaved, setKeySaved] = useState(false)
 
+  async function chooseFolder() {
+    try {
+      const dir = await pickBackupFolder()
+      if (!dir) return
+      setBackupFolder(dir)
+      toast(`Backups will be saved to ${dir}`, 'ok')
+      void backupNow()
+    } catch (e) {
+      toast(String((e as Error)?.message ?? e), 'err')
+    }
+  }
+
   function turnProtectionOn() {
     try { setKeySaved(false); setKeyDialog({ mode: 'new', key: enableFileProtection() }) }
     catch (e) { toast((e as Error).message, 'err') }
@@ -45,7 +57,7 @@ export function DataSafety() {
     try { await navigator.clipboard.writeText(keyDialog?.key ?? ''); toast('Recovery key copied', 'ok') } catch { toast('Could not copy — select the key and copy it by hand', 'err') }
   }
   async function saveKeyFile() {
-    const text = `Krishna Collection — backup recovery key\r\n\r\n${keyDialog?.key}\r\n\r\nThis key opens the backup files in Documents\\Krishna Collection Backups.\r\nKeep it somewhere other than this computer.\r\n`
+    const text = `Krishna Collection — backup recovery key\r\n\r\n${keyDialog?.key}\r\n\r\nThis key opens the backup files in ${b.local.customDir || 'Documents\\Krishna Collection Backups'}.\r\nKeep it somewhere other than this computer.\r\n`
     const res = await saveBackup(text, 'krishna-collection-recovery-key.txt')
     if (res.ok) toast('Recovery key saved — keep that file off this computer', 'ok')
   }
@@ -181,6 +193,20 @@ export function DataSafety() {
 
             <div className="row between" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginTop: 18 }}>
               <div style={{ flex: '1 1 320px' }}>
+                <div className="bold">Backup folder</div>
+                <div className="small muted" style={{ marginTop: 6 }}>
+                  Where the backup files are saved. Currently <b>{b.local.customDir || 'Documents\\Krishna Collection Backups'}</b>.
+                  Pick a folder that is not on the same disk as the shop's data if you can (another drive, or a synced folder such as OneDrive).
+                </div>
+              </div>
+              <div className="row gap-6 wrap">
+                <button className="btn" onClick={() => void chooseFolder()}>Choose folder…</button>
+                {b.local.customDir && <button className="btn" onClick={() => { setBackupFolder(''); toast('Backups go back to Documents') }}>Use default</button>}
+              </div>
+            </div>
+
+            <div className="row between" style={{ gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginTop: 18 }}>
+              <div style={{ flex: '1 1 320px' }}>
                 <div className="bold">Second copy on another drive</div>
                 <div className="small muted" style={{ marginTop: 6 }}>
                   A USB stick or second disk. A folder called "Krishna Collection Backups" is created on it, and every backup is written there too.
@@ -237,7 +263,7 @@ export function DataSafety() {
           ? <><button className="btn" onClick={closeKeyDialog}>Cancel</button><button className="btn btn-primary btn-lg" disabled={!keySaved} onClick={() => { setKeyDialog(null) }}>Done — backup files are locked</button></>
           : <button className="btn btn-primary" onClick={closeKeyDialog}>Close</button>}>
         <div className="dim" style={{ marginBottom: 12 }}>
-          Backup files in <b>Documents\Krishna Collection Backups</b> are locked with this key. To restore one (Settings → Data → Restore from file) you will type it in.
+          Backup files in <b>{b.local.customDir || 'Documents\\Krishna Collection Backups'}</b> are locked with this key. To restore one (Settings → Data → Restore from file) you will type it in.
           Without it a locked file cannot be opened by anyone, including us.
         </div>
         <div className="mono bold" style={{ fontSize: 17, letterSpacing: '.04em', padding: '14px 16px', background: 'var(--surface-2, #f3f4f6)', borderRadius: 10, border: '1px solid var(--line)', userSelect: 'all', wordBreak: 'break-all' }}>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, exportBackup } from '../db'
+import { clearSalesData } from '../db/ops'
 import { id } from '../lib/id'
 import { hashPin, verifyPin } from '../lib/pin'
 import { rememberPlainPin } from '../db/plainPin'
@@ -13,6 +14,7 @@ import { SyncBadge } from '../components/SyncBadge'
 import { DataSafety } from '../components/DataSafety'
 import { Diagnostics } from '../components/Diagnostics'
 import { restoreBackup, type BackupPayload } from '../lib/backup'
+import { cloudRequest, isCloudReady } from '../lib/sync'
 import { decryptWithPassphraseOrKey, encryptText, isEncryptedBackup } from '../lib/crypto'
 import { Download, HistoryIcon, Plus, Search, TrashIcon, Upload } from '../components/icons'
 import { useApp } from '../state'
@@ -609,6 +611,24 @@ function DataTab({ f, set }: { f: StoreSettings; set: (p: Partial<StoreSettings>
 
   const connected = !!settings?.syncApiUrl
 
+  const [clearOpen, setClearOpen] = useState(false)
+  async function doClear() {
+    setClearOpen(false)
+    try {
+      // Cloud first: if it fails nothing has changed anywhere, so the two copies can't drift apart.
+      if (connected) {
+        if (!isCloudReady()) throw new Error('Connect to the internet and sign in to the cloud first, so the cloud copy is cleared too')
+        const res = await cloudRequest('/store/clear-sales-data', { method: 'POST' })
+        if (!res.ok) throw new Error(res.status === 403 ? 'Only the owner can clear this data' : `The cloud could not clear the data (${res.status})`)
+      }
+      const r = await clearSalesData()
+      toast(`Cleared ${r.bills} bills and ${r.customers} customers — reloading`, 'ok')
+      setTimeout(() => window.location.reload(), 800)
+    } catch (e) {
+      toast((e as Error).message, 'err')
+    }
+  }
+
   return (
     <>
       <DataSafety />
@@ -659,6 +679,20 @@ function DataTab({ f, set }: { f: StoreSettings; set: (p: Partial<StoreSettings>
           </div>
         </div>
       </section>
+
+      <section className="card">
+        <div className="card-head"><h2>Clear test data</h2></div>
+        <div className="card-body">
+          <div className="small muted" style={{ marginBottom: 14 }}>
+            Deletes every customer and every bill and return, on this device and in the cloud, and puts the sold stock back. Products, stock, staff, expenses and settings are kept, and the next bill is numbered 1 again. Save a backup file first if you might need the old data.
+          </div>
+          <button className="btn btn-danger" onClick={() => setClearOpen(true)}><TrashIcon size={15} /> Clear customers and bills…</button>
+        </div>
+      </section>
+
+      <Confirm open={clearOpen} title="Delete all customers and bills?" danger confirmLabel="Delete everything"
+        message={<>This <strong>permanently deletes every customer and every bill</strong>{connected ? ' on this device and in the cloud' : ' on this device'}. It cannot be undone, except by restoring a backup.</>}
+        onConfirm={() => void doClear()} onClose={() => setClearOpen(false)} />
 
       <Modal open={!!ask} title={ask?.mode === 'lock' ? 'Protect this backup' : 'This backup is protected'} onClose={() => setAsk(null)}
         footer={<><button className="btn" onClick={() => setAsk(null)}>Cancel</button><button className="btn btn-primary btn-lg" onClick={() => void submitPass()}>{ask?.mode === 'lock' ? 'Save protected backup' : 'Unlock'}</button></>}>

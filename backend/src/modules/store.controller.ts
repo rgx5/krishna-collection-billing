@@ -41,6 +41,26 @@ export class StoreController {
     if (u) await this.db.query(u.sql.replace(' WHERE', ', updated_at = now() WHERE'), u.params)
     return this.show(c)
   }
+
+  /**
+   * Owner-only wipe of every customer and bill (sales and returns) for this store, e.g. to clear test data before
+   * going live. Stock sold or returned through those bills is put back, and the next invoice number restarts at 1.
+   */
+  @Perm('settings') @Post('clear-sales-data')
+  async clearSalesData(@Auth() c: Claims) {
+    return this.db.tx(async (q) => {
+      await q.query(
+        `UPDATE variants v SET stock = v.stock - m.total
+           FROM (SELECT variant_id, SUM(qty) AS total FROM stock_moves
+                  WHERE store_id = :id AND type IN ('sale','return') GROUP BY variant_id) m
+          WHERE v.id = m.variant_id AND v.store_id = :id`, { id: c.storeId })
+      await q.query(`DELETE FROM stock_moves WHERE store_id = :id AND type IN ('sale','return')`, { id: c.storeId })
+      const bills = await q.query('DELETE FROM bills WHERE store_id = :id RETURNING id', { id: c.storeId })
+      const customers = await q.query('DELETE FROM customers WHERE store_id = :id RETURNING id', { id: c.storeId })
+      await q.query('UPDATE stores SET next_invoice_no = 1, updated_at = now() WHERE id = :id', { id: c.storeId })
+      return { ok: true, bills: bills.length, customers: customers.length }
+    })
+  }
 }
 
 @Controller('categories')

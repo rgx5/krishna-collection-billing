@@ -25,8 +25,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backup::save_backup,
             backup::open_backup,
+            backup::allow_backup_folder,
+            backup::pick_backup_folder,
             printer::list_serial_ports,
             printer::print_raw,
+            printer::print_silent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

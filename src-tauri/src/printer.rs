@@ -73,3 +73,53 @@ pub fn print_raw(target: PrinterTarget, data: Vec<u8>) -> Result<(), String> {
         }
     }
 }
+
+/// Prints the page's `#print-root` content through the Windows print system **without showing the print dialog**,
+/// to the Windows default printer. Used for receipts only — barcode labels still go through the normal dialog, so
+/// a different (label) printer can be picked. (The old `--kiosk-printing` switch silenced every print in the app.)
+#[cfg(windows)]
+#[tauri::command]
+pub async fn print_silent(window: tauri::WebviewWindow) -> Result<(), String> {
+    use std::sync::mpsc;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2PrintSettings, ICoreWebView2_16, COREWEBVIEW2_PRINT_STATUS_SUCCEEDED,
+    };
+    use webview2_com::PrintCompletedHandler;
+    use windows::core::Interface;
+
+    let (tx, rx) = mpsc::channel::<Result<(), String>>();
+    let tx_start = tx.clone();
+    window
+        .with_webview(move |webview| unsafe {
+            let started = (|| -> Result<(), String> {
+                let core = webview.controller().CoreWebView2().map_err(|e| e.to_string())?;
+                let core16: ICoreWebView2_16 = core.cast().map_err(|e| format!("Silent printing needs a newer WebView2 runtime: {e}"))?;
+                let done = tx.clone();
+                let handler = PrintCompletedHandler::create(Box::new(move |result, status| {
+                    let _ = done.send(match result {
+                        Ok(()) if status == COREWEBVIEW2_PRINT_STATUS_SUCCEEDED => Ok(()),
+                        Ok(()) => Err("The printer did not accept the job".to_string()),
+                        Err(e) => Err(e.to_string()),
+                    });
+                    Ok(())
+                }));
+                core16.Print(None::<&ICoreWebView2PrintSettings>, &handler).map_err(|e| e.to_string())
+            })();
+            if let Err(e) = started {
+                let _ = tx_start.send(Err(e));
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        rx.recv_timeout(Duration::from_secs(60)).unwrap_or_else(|_| Err("The printer took too long to respond".to_string()))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Not available outside Windows — the page falls back to the normal print dialog.
+#[cfg(not(windows))]
+#[tauri::command]
+pub async fn print_silent() -> Result<(), String> {
+    Err("Silent printing is only available in the Windows app".into())
+}
